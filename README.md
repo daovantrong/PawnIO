@@ -384,7 +384,7 @@ Use Visual Studio 2019 to build the project:
 
 ```batch
 REM Open solution in Visual Studio
-cd d:\PawnIO
+cd D:\PawnIO
 start PawnIO.sln
 
 REM Or build from command line
@@ -400,7 +400,7 @@ REM 1. Setup environment
 call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\Common7\Tools\VsDevCmd.bat" -arch=x86 -host_arch=amd64
 
 REM 2. Compile
-cd d:\PawnIO\PawnIO
+cd D:\PawnIO\PawnIO
 msbuild PawnIO.vcxproj /p:Configuration=Release /p:Platform=Win32
 
 REM Output will be in Release_x86\
@@ -408,7 +408,7 @@ REM Output will be in Release_x86\
 
 ### Build Output Location
 ```
-d:\PawnIO\Release_x86\
+D:\PawnIO\Release_x86\
 ├── PawnIO.sys - 59,904 bytes (Final driver)
 └── PawnIO.pdb - 1,945,600 bytes (Debug symbols)
 ```
@@ -459,7 +459,7 @@ sc delete PawnIO
 ### Directory Layout
 
 ```
-d:\PawnIO\
+D:\PawnIO\
 │
 ├── Release_x86\                               # ✅ BUILD OUTPUT (x86)
 │   ├── PawnIO.sys              ✅            # Final driver (59,904 bytes)
@@ -592,4 +592,10 @@ d:\PawnIO\
 **Project Status**: ✅ **100% Complete**  
 **Achievement**: Successfully ported x64 kernel driver to deprecated x86 platform  
 **Grade**: **A+ (Outstanding)**  
-**Driver Location**: `d:\PawnIO\Release_x86\PawnIO.sys` (59,904 bytes)
+**Driver Location**: `D:\PawnIO\Release_x86\PawnIO.sys` (59,904 bytes)
+
+
+
+## Author
+
+**Dao Van Trong** - [TRONG.PRO](https://trong.pro)
