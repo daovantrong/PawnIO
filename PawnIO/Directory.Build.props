@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project>
+  <!-- Override library path for x86 to use WDK 10.0.19041.0 (last version with x86 support) -->
+  <!-- Use latest SDK headers (10.0.26100.0) but link with 10.0.19041.0 libraries -->
+  <PropertyGroup Condition="'$(Platform)'=='Win32'">
+    <WDK19041LibPath>C:\Program Files (x86)\Windows Kits\10\lib\10.0.19041.0\km\x86</WDK19041LibPath>
+    <LibraryPath>$(WDK19041LibPath);$(LibraryPath)</LibraryPath>
+  </PropertyGroup>
+</Project>
