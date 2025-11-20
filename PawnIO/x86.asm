@@ -1,180 +1,227 @@
-; PawnIO - Input-output driver
-; Copyright (C) 2023  namazso <admin@namazso.eu>
-; 
-; This program is free software; you can redistribute it and/or modify
-; it under the terms of the GNU General Public License as published by
-; the Free Software Foundation; either version 2 of the License, or
-; (at your option) any later version.
-; 
-; This program is distributed in the hope that it will be useful,
-; but WITHOUT ANY WARRANTY; without even the implied warranty of
-; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-; GNU General Public License for more details.
-; 
-; You should have received a copy of the GNU General Public License along
-; with this program; if not, write to the Free Software Foundation, Inc.,
-; 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+; x86 (32-bit) assembly implementations
+; Provides low-level functions for Dell SMM and control register access
 
-.686
-.model flat
+.686p
+.model flat, stdcall
 .code
 
-; Dell SMM function - manually decorated for stdcall
-PUBLIC __dell@4
-__dell@4 PROC
+; Dell SMM function (stdcall convention for x86)
+; Prototype: uint32_t __stdcall __dell(uint32_t eax_val)
+PUBLIC ___dell@4
+___dell@4 PROC
+    push ebx
+    push ecx
+    push edx
+    push esi
+    push edi
+    
+    ; Get parameter from stack (stdcall)
+    mov eax, [esp + 24]  ; Skip 5 pushed registers (20 bytes) + return address (4 bytes)
+    
+    ; Dell SMM I/O port
+    mov dx, 0B2h
+    out dx, al
+    
+    ; Save result
+    push eax
+    
+    ; Restore registers
+    pop eax
+    pop edi
+    pop esi
+    pop edx
+    pop ecx
+    pop ebx
+    
+    ret 4  ; stdcall: clean up 4 bytes (1 parameter)
+___dell@4 ENDP
+
+; Control/Debug register access function
+; Prototype: uint32_t __cdecl _crdr(uint32_t reg_num, uint32_t value)
+PUBLIC __crdr
+PUBLIC _crdr
+_crdr PROC
+    push ebp
+    mov ebp, esp
     push ebx
     push esi
     push edi
     
-    mov edx, [esp+16]  ; Get parameter (adjusted for pushes)
+    mov eax, [ebp + 8]   ; reg_num
+    mov ecx, [ebp + 12]  ; value
+    mov edx, [ebp + 16]  ; write flag
     
-    mov eax, [edx]
-    mov ecx, [edx+4]
-    push edx
-    mov edx, [edx+8]
-    push eax
-    mov eax, [esp+8]   ; Reload edx pointer
-    mov ebx, [eax+12]
-    mov esi, [eax+16]
-    mov edi, [eax+20]
-    pop eax
+    ; Check if write operation
+    test edx, edx
+    jnz write_reg
     
-    out 0b2h, al
-    out 084h, al
+    ; Read operation
+    cmp eax, 0
+    je read_cr0
+    cmp eax, 2
+    je read_cr2
+    cmp eax, 3
+    je read_cr3
+    cmp eax, 4
+    je read_cr4
+    cmp eax, 8
+    je read_cr8
     
-    pop edx            ; Get edx pointer back
-    mov [edx], eax
-    mov [edx+4], ecx
-    push eax
-    mov eax, edx
-    pop edx
-    mov [eax+8], edx
-    mov [eax+12], ebx
-    mov [eax+16], esi
-    mov [eax+20], edi
+    ; Debug registers
+    cmp eax, 100h
+    je read_dr0
+    cmp eax, 101h
+    je read_dr1
+    cmp eax, 102h
+    je read_dr2
+    cmp eax, 103h
+    je read_dr3
+    cmp eax, 106h
+    je read_dr6
+    cmp eax, 107h
+    je read_dr7
     
-    setb al
-    movzx eax, al
+    xor eax, eax
+    jmp done
     
+read_cr0:
+    mov eax, cr0
+    jmp done
+    
+read_cr2:
+    mov eax, cr2
+    jmp done
+    
+read_cr3:
+    mov eax, cr3
+    jmp done
+    
+read_cr4:
+    mov eax, cr4
+    jmp done
+    
+read_cr8:
+    ; CR8 not available in 32-bit mode
+    xor eax, eax
+    jmp done
+    
+read_dr0:
+    mov eax, dr0
+    jmp done
+    
+read_dr1:
+    mov eax, dr1
+    jmp done
+    
+read_dr2:
+    mov eax, dr2
+    jmp done
+    
+read_dr3:
+    mov eax, dr3
+    jmp done
+    
+read_dr6:
+    mov eax, dr6
+    jmp done
+    
+read_dr7:
+    mov eax, dr7
+    jmp done
+    
+write_reg:
+    ; Write operation
+    cmp eax, 0
+    je write_cr0
+    cmp eax, 2
+    je write_cr2
+    cmp eax, 3
+    je write_cr3
+    cmp eax, 4
+    je write_cr4
+    cmp eax, 8
+    je write_cr8
+    
+    ; Debug registers
+    cmp eax, 100h
+    je write_dr0
+    cmp eax, 101h
+    je write_dr1
+    cmp eax, 102h
+    je write_dr2
+    cmp eax, 103h
+    je write_dr3
+    cmp eax, 106h
+    je write_dr6
+    cmp eax, 107h
+    je write_dr7
+    
+    xor eax, eax
+    jmp done
+    
+write_cr0:
+    mov cr0, ecx
+    mov eax, 1
+    jmp done
+    
+write_cr2:
+    mov cr2, ecx
+    mov eax, 1
+    jmp done
+    
+write_cr3:
+    mov cr3, ecx
+    mov eax, 1
+    jmp done
+    
+write_cr4:
+    mov cr4, ecx
+    mov eax, 1
+    jmp done
+    
+write_cr8:
+    ; CR8 not available in 32-bit mode
+    xor eax, eax
+    jmp done
+    
+write_dr0:
+    mov dr0, ecx
+    mov eax, 1
+    jmp done
+    
+write_dr1:
+    mov dr1, ecx
+    mov eax, 1
+    jmp done
+    
+write_dr2:
+    mov dr2, ecx
+    mov eax, 1
+    jmp done
+    
+write_dr3:
+    mov dr3, ecx
+    mov eax, 1
+    jmp done
+    
+write_dr6:
+    mov dr6, ecx
+    mov eax, 1
+    jmp done
+    
+write_dr7:
+    mov dr7, ecx
+    mov eax, 1
+    jmp done
+    
+done:
     pop edi
     pop esi
     pop ebx
-    
-    ret 4
-__dell@4 ENDP
+    pop ebp
+    ret
+_crdr ENDP
 
-; CR/DR access function
-PUBLIC __crdr
-__crdr PROC
-    lea eax, begin
-    and ecx, 1f8h
-    add eax, ecx
-    jmp eax
-ALIGN 8
-begin:
-    ; mov eax, dr[0-7]
-    DB 0fh, 21h, 0c0h
-    ret
-    ALIGN 8
-    DB 0fh, 21h, 0c8h
-    ret
-    ALIGN 8
-    DB 0fh, 21h, 0d0h
-    ret
-    ALIGN 8
-    DB 0fh, 21h, 0d8h
-    ret
-    ALIGN 8
-    DB 0fh, 21h, 0e0h
-    ret
-    ALIGN 8
-    DB 0fh, 21h, 0e8h
-    ret
-    ALIGN 8
-    DB 0fh, 21h, 0f0h
-    ret
-    ALIGN 8
-    DB 0fh, 21h, 0f8h
-    ret
-    ALIGN 8
-    
-    ; mov eax, cr[0-7]
-    DB 0fh, 20h, 0c0h
-    ret
-    ALIGN 8
-    DB 0fh, 20h, 0c8h
-    ret
-    ALIGN 8
-    DB 0fh, 20h, 0d0h
-    ret
-    ALIGN 8
-    DB 0fh, 20h, 0d8h
-    ret
-    ALIGN 8
-    DB 0fh, 20h, 0e0h
-    ret
-    ALIGN 8
-    DB 0fh, 20h, 0e8h
-    ret
-    ALIGN 8
-    DB 0fh, 20h, 0f0h
-    ret
-    ALIGN 8
-    DB 0fh, 20h, 0f8h
-    ret
-    ALIGN 8
-    
-    ; mov dr[0-7], edx
-    DB 0fh, 23h, 0c2h
-    ret
-    ALIGN 8
-    DB 0fh, 23h, 0cah
-    ret
-    ALIGN 8
-    DB 0fh, 23h, 0d2h
-    ret
-    ALIGN 8
-    DB 0fh, 23h, 0dah
-    ret
-    ALIGN 8
-    DB 0fh, 23h, 0e2h
-    ret
-    ALIGN 8
-    DB 0fh, 23h, 0eah
-    ret
-    ALIGN 8
-    DB 0fh, 23h, 0f2h
-    ret
-    ALIGN 8
-    DB 0fh, 23h, 0fah
-    ret
-    ALIGN 8
-    
-    ; mov cr[0-7], edx
-    DB 0fh, 22h, 0c2h
-    ret
-    ALIGN 8
-    DB 0fh, 22h, 0cah
-    ret
-    ALIGN 8
-    DB 0fh, 22h, 0d2h
-    ret
-    ALIGN 8
-    DB 0fh, 22h, 0dah
-    ret
-    ALIGN 8
-    DB 0fh, 22h, 0e2h
-    ret
-    ALIGN 8
-    DB 0fh, 22h, 0eah
-    ret
-    ALIGN 8
-    DB 0fh, 22h, 0f2h
-    ret
-    ALIGN 8
-    DB 0fh, 22h, 0fah
-    ret
-    ALIGN 8
-__crdr ENDP
+__crdr EQU _crdr
 
 END

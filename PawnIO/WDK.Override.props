@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <!-- Override WDK platform validation for Win32 -->
+  
+  <PropertyGroup>
+    <!-- Disable WDK platform check -->
+    <DisableWdkPlatformCheck>true</DisableWdkPlatformCheck>
+    
+    <!-- Mark Win32 as supported -->
+    <Win32Supported>true</Win32Supported>
+  </PropertyGroup>
+  
+  <!-- Define Win32 platform for WDK when it's selected -->
+  <PropertyGroup Condition="'$(Platform)'=='Win32'">
+    <!-- Tell WDK this is a valid platform -->
+    <PlatformShortName>x86</PlatformShortName>
+    <ArchitectureShortName>x86</ArchitectureShortName>
+    
+    <!-- Driver type settings -->
+    <DriverType>WDM</DriverType>
+    <TargetVersion>Windows10</TargetVersion>
+    <MinimumVisualStudioVersion>12.0</MinimumVisualStudioVersion>
+    
+    <!-- WDK paths -->
+    <WdkKmDir>$(WDKContentRoot)Lib\$(TargetPlatformVersion)\km\x86</WdkKmDir>
+    
+    <!-- Architecture preprocessor defines -->
+    <PreprocessorDefinitions>_X86_=1;i386=1;ARCH_X86=1;$(PreprocessorDefinitions)</PreprocessorDefinitions>
+  </PropertyGroup>
+</Project>

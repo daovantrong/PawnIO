@@ -1,32 +1,50 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <!-- Override WDK x86 architecture check to allow Win32 kernel driver builds -->
-  <PropertyGroup>
-    <!-- Force DDKPlatform to be recognized even for Win32 -->
-    <DDKPlatform Condition="'$(Platform)' == 'Win32'">x86</DDKPlatform>
-  </PropertyGroup>
+  <!-- MSBuild targets for x86 build support -->
   
-  <!-- Override WDK paths for x86 AFTER all imports -->
+  <!-- Override WDK architecture check for x86 -->
+  <Target Name="OverrideWDKArchCheck" BeforeTargets="PrepareForBuild">
+    <PropertyGroup Condition="'$(Platform)'=='Win32'">
+      <!-- Bypass WDK x86 architecture check -->
+      <_WDKContentRoot>$(WDKContentRoot)</_WDKContentRoot>
+      
+      <!-- Force platform to be recognized -->
+      <SupportedPlatforms>Win32;x64;ARM64</SupportedPlatforms>
+      
+      <!-- Define architecture macros if not already defined -->
+      <PreprocessorDefinitions Condition="!$(PreprocessorDefinitions.Contains('ARCH_X86'))">ARCH_X86=1;$(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="!$(PreprocessorDefinitions.Contains('_X86_'))">_X86_=1;$(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="!$(PreprocessorDefinitions.Contains('i386'))">i386=1;$(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </PropertyGroup>
+  </Target>
+  
+  <!-- Force WDK to accept Win32 platform -->
   <PropertyGroup Condition="'$(Platform)'=='Win32'">
-    <!-- Allow x86 kernel driver builds -->
-    <_WDKCheckArchitecture>false</_WDKCheckArchitecture>
-    <DriverTargetPlatform>Desktop</DriverTargetPlatform>
-    
-    <!-- Force WDK 10.0.19041.0 paths for x86 -->
-    <WDK19041>C:\Program Files (x86)\Windows Kits\10\Include\10.0.19041.0</WDK19041>
+    <WDKTargetPlatform>Win32</WDKTargetPlatform>
+    <SupportsWin32>true</SupportsWin32>
   </PropertyGroup>
   
-  <!-- Override include paths AFTER they are set -->
+  <!-- Configure WDK include paths for x86 -->
+  <Target Name="ConfigureWDKIncludes" BeforeTargets="ClCompile">
+    <PropertyGroup Condition="'$(Platform)'=='Win32'">
+      <!-- Prepend WDK 10.0.19041 include paths -->
+      <WDK19041IncludePath>C:\Program Files (x86)\Windows Kits\10\Include\10.0.19041.0</WDK19041IncludePath>
+      
+      <!-- Add WDK includes -->
+      <IncludePath>$(WDK19041IncludePath)\km;$(WDK19041IncludePath)\shared;$(WDK19041IncludePath)\km\crt;$(IncludePath)</IncludePath>
+    </PropertyGroup>
+  </Target>
+  
+  <!-- Configure MASM for x86.asm -->
   <ItemDefinitionGroup Condition="'$(Platform)'=='Win32'">
-    <ClCompile>
-      <!-- Prepend WDK 10.0.19041.0 includes BEFORE default includes -->
-      <AdditionalOptions>/I"$(WDK19041)\km" /I"$(WDK19041)\shared" /I"$(WDK19041)\um" /I"$(WDK19041)\ucrt" /D_X86_=1 /Di386=1 %(AdditionalOptions)</AdditionalOptions>
+    <MASM>
       <PreprocessorDefinitions>_X86_;i386;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-    </ClCompile>
+      <IncludePaths>$(IncludePath);%(IncludePaths)</IncludePaths>
+      <AssembledCodeListingFile>$(IntDir)%(Filename).lst</AssembledCodeListingFile>
+      <UseSafeExceptionHandlers>false</UseSafeExceptionHandlers>
+    </MASM>
   </ItemDefinitionGroup>
   
-  <!-- Remove the x86 error check by defining it as empty before WDK imports it -->
-  <Target Name="RemoveX86ArchitectureCheck" BeforeTargets="PrepareForBuild">
-    <Message Text="Bypassing WDK x86 architecture check for Win32 platform" Importance="high" />
-  </Target>
+  <!-- Ensure kernel_stubs.c is compiled with correct flags -->
+  <!-- Note: File-specific settings are handled in the .vcxproj file -->
 </Project>

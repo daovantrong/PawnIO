@@ -1,9 +1,85 @@
 <?xml version="1.0" encoding="utf-8"?>
-<Project>
-  <!-- Override library path for x86 to use WDK 10.0.19041.0 (last version with x86 support) -->
-  <!-- Use latest SDK headers (10.0.26100.0) but link with 10.0.19041.0 libraries -->
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <!-- MSBuild properties for x86 build support -->
+  
+  <!-- Configure WDK 19041 library path for x86 builds -->
   <PropertyGroup Condition="'$(Platform)'=='Win32'">
-    <WDK19041LibPath>C:\Program Files (x86)\Windows Kits\10\lib\10.0.19041.0\km\x86</WDK19041LibPath>
+    <!-- WDK 10.0.19041 paths -->
+    <WDKRoot>C:\Program Files (x86)\Windows Kits\10</WDKRoot>
+    <WDKVersion>10.0.19041.0</WDKVersion>
+    <WDK19041IncPath>$(WDKRoot)\Include\$(WDKVersion)</WDK19041IncPath>
+    <WDK19041LibPath>$(WDKRoot)\lib\$(WDKVersion)\km\x86</WDK19041LibPath>
+    
+    <!-- Add WDK include paths -->
+    <IncludePath>$(WDK19041IncPath)\km;$(WDK19041IncPath)\shared;$(WDK19041IncPath)\km\crt;$(IncludePath)</IncludePath>
+    
+    <!-- Prepend WDK 19041 lib path to library search path -->
     <LibraryPath>$(WDK19041LibPath);$(LibraryPath)</LibraryPath>
+    
+    <!-- Define architecture macros -->
+    <PreprocessorDefinitions>ARCH_X86=1;_X86_=1;i386=1;_KERNEL_MODE=1;$(PreprocessorDefinitions)</PreprocessorDefinitions>
   </PropertyGroup>
+  
+  <!-- Configure for x64 builds -->
+  <PropertyGroup Condition="'$(Platform)'=='x64'">
+    <PreprocessorDefinitions>ARCH_X64=1;$(PreprocessorDefinitions)</PreprocessorDefinitions>
+  </PropertyGroup>
+  
+  <!-- Common settings for all platforms -->
+  <PropertyGroup>
+    <!-- Disable buffer security checks for kernel mode -->
+    <BufferSecurityCheck Condition="'$(Platform)'=='Win32'">false</BufferSecurityCheck>
+    
+    <!-- Enable intrinsic functions -->
+    <IntrinsicFunctions>true</IntrinsicFunctions>
+    
+    <!-- Warning level -->
+    <WarningLevel>Level3</WarningLevel>
+    
+    <!-- Treat warnings as errors -->
+    <TreatWarningAsError>false</TreatWarningAsError>
+  </PropertyGroup>
+  
+  <!-- Linker settings for x86 -->
+  <ItemDefinitionGroup Condition="'$(Platform)'=='Win32'">
+    <Link>
+      <!-- Driver-specific linker settings -->
+      <SubSystem>Native</SubSystem>
+      <EntryPointSymbol>DriverEntry</EntryPointSymbol>
+      <TargetMachine>MachineX86</TargetMachine>
+      <Driver>Driver</Driver>
+      <AdditionalOptions>/INTEGRITYCHECK /DYNAMICBASE %(AdditionalOptions)</AdditionalOptions>
+      <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>
+      
+      <!-- Kernel libraries -->
+      <AdditionalLibraryDirectories>C:\Program Files (x86)\Windows Kits\10\lib\10.0.19041.0\km\x86;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      
+      <!-- Replace default libs with kernel libs -->
+      <AdditionalDependencies>ntoskrnl.lib;hal.lib;wdmsec.lib;BufferOverflowK.lib;cng.lib</AdditionalDependencies>
+      <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
+      
+      <!-- Disable manifest for driver -->
+      <GenerateManifest>false</GenerateManifest>
+    </Link>
+    
+    <ClCompile>
+      <!-- Disable buffer security checks -->
+      <BufferSecurityCheck>false</BufferSecurityCheck>
+      
+      <!-- Disable intrinsic functions for some CRT functions -->
+      <OmitFramePointers>false</OmitFramePointers>
+      
+      <!-- Runtime library -->
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      
+      <!-- Exception handling -->
+      <ExceptionHandling>Sync</ExceptionHandling>
+      
+      <!-- Force architecture defines -->
+      <ForcedIncludeFiles>%(ForcedIncludeFiles)</ForcedIncludeFiles>
+      
+      <!-- Additional options - define architecture early -->
+      <AdditionalOptions>/kernel /D_X86_=1 /Di386=1 %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+  </ItemDefinitionGroup>
 </Project>

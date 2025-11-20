@@ -46,15 +46,15 @@
 
 #pragma once
 
-#if defined(_M_AMD64) || defined(__amd64__)
+#if defined(_M_IX86) || defined(__i386__) || defined(i386) || defined(_X86_)
+#define ARCH_X86 1
+#define ARCH 0
+#elif defined(_M_AMD64) || defined(__amd64__)
 #define ARCH_X64 1
 #define ARCH 1
 #elif defined(_M_ARM64) || defined(__aarch64__)
 #define ARCH_A64 1
 #define ARCH 2
-#elif defined(_M_IX86) || defined(__i386__)
-#define ARCH_X86 1
-#define ARCH 0
 #else
 #error "Unsupported architecture"
 #endif

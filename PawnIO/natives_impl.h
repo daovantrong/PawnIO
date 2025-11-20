@@ -46,174 +46,158 @@
 
 #pragma once
 
+#include "arch_detect.h"
+
+// Use architecture-aware cell types
 #include "arch_types.h"
 
-// Architecture information
-cell_t get_arch();
+using cell = cell_t;
+using scell = scell_t;
 
-// CPU management
-cell_t cpu_count();
-cell_t cpu_set_affinity(cell_t which, affinity_storage_t& old);
-cell_t cpu_restore_affinity(affinity_storage_t old);
+static_assert(sizeof(cell) == sizeof(void*));
 
-// MSR operations
-cell_t msr_read(cell_t msr, cell_t& value);
-cell_t msr_write(cell_t msr, cell_t value);
+cell get_arch();
 
-// Interrupt control
+cell cpu_count();
+cell cpu_set_affinity(cell which, std::array<cell, 2>& old);
+cell cpu_restore_affinity(std::array<cell, 2> old);
+
+cell msr_read(cell msr, cell& value);
+cell msr_write(cell msr, cell value);
+
 void interrupts_disable();
 void interrupts_enable();
 
-// Physical memory operations
-cell_t physical_read_byte(cell_t pa, cell_t& value);
-cell_t physical_read_word(cell_t pa, cell_t& value);
-cell_t physical_read_dword(cell_t pa, cell_t& value);
-cell_t physical_read_qword(cell_t pa, cell_t& value);
+cell physical_read_byte(cell pa, cell& value);
+cell physical_read_word(cell pa, cell& value);
+cell physical_read_dword(cell pa, cell& value);
+cell physical_read_qword(cell pa, cell& value);
 
-cell_t physical_write_byte(cell_t pa, cell_t value);
-cell_t physical_write_word(cell_t pa, cell_t value);
-cell_t physical_write_dword(cell_t pa, cell_t value);
-cell_t physical_write_qword(cell_t pa, cell_t value);
+cell physical_write_byte(cell pa, cell value);
+cell physical_write_word(cell pa, cell value);
+cell physical_write_dword(cell pa, cell value);
+cell physical_write_qword(cell pa, cell value);
 
-// IO space mapping
-cell_t io_space_map(cell_t pa, cell_t size);
-void io_space_unmap(cell_t va, cell_t size);
+cell io_space_map(cell pa, cell size);
+void io_space_unmap(cell va, cell size);
 
-// Virtual memory operations
-cell_t virtual_read_byte(cell_t va, cell_t& value);
-cell_t virtual_read_word(cell_t va, cell_t& value);
-cell_t virtual_read_dword(cell_t va, cell_t& value);
-cell_t virtual_read_qword(cell_t va, cell_t& value);
+cell virtual_read_byte(cell va, cell& value);
+cell virtual_read_word(cell va, cell& value);
+cell virtual_read_dword(cell va, cell& value);
+cell virtual_read_qword(cell va, cell& value);
 
-cell_t virtual_write_byte(cell_t va, cell_t value);
-cell_t virtual_write_word(cell_t va, cell_t value);
-cell_t virtual_write_dword(cell_t va, cell_t value);
-cell_t virtual_write_qword(cell_t va, cell_t value);
+cell virtual_write_byte(cell va, cell value);
+cell virtual_write_word(cell va, cell value);
+cell virtual_write_dword(cell va, cell value);
+cell virtual_write_qword(cell va, cell value);
 
-// Atomic operations
-cell_t virtual_cmpxchg_byte2(cell_t va, cell_t exchange, cell_t comparand);
-cell_t virtual_cmpxchg_word2(cell_t va, cell_t exchange, cell_t comparand);
-cell_t virtual_cmpxchg_dword2(cell_t va, cell_t exchange, cell_t comparand);
-cell_t virtual_cmpxchg_qword2(cell_t va, cell_t exchange, cell_t comparand);
+cell virtual_cmpxchg_byte2(cell va, cell exchange, cell comparand);
+cell virtual_cmpxchg_word2(cell va, cell exchange, cell comparand);
+cell virtual_cmpxchg_dword2(cell va, cell exchange, cell comparand);
+cell virtual_cmpxchg_qword2(cell va, cell exchange, cell comparand);
 
-// Memory allocation
-cell_t virtual_alloc(cell_t size);
-void virtual_free(cell_t va);
+cell virtual_alloc(cell size);
+void virtual_free(cell va);
 
-// PCI configuration space
-cell_t pci_config_read_byte(cell_t bus, cell_t device, cell_t function, cell_t offset, cell_t& value);
-cell_t pci_config_read_word(cell_t bus, cell_t device, cell_t function, cell_t offset, cell_t& value);
-cell_t pci_config_read_dword(cell_t bus, cell_t device, cell_t function, cell_t offset, cell_t& value);
-cell_t pci_config_read_qword(cell_t bus, cell_t device, cell_t function, cell_t offset, cell_t& value);
+cell pci_config_read_byte(cell bus, cell device, cell function, cell offset, cell& value);
+cell pci_config_read_word(cell bus, cell device, cell function, cell offset, cell& value);
+cell pci_config_read_dword(cell bus, cell device, cell function, cell offset, cell& value);
+cell pci_config_read_qword(cell bus, cell device, cell function, cell offset, cell& value);
 
-cell_t pci_config_write_byte(cell_t bus, cell_t device, cell_t function, cell_t offset, cell_t value);
-cell_t pci_config_write_word(cell_t bus, cell_t device, cell_t function, cell_t offset, cell_t value);
-cell_t pci_config_write_dword(cell_t bus, cell_t device, cell_t function, cell_t offset, cell_t value);
-cell_t pci_config_write_qword(cell_t bus, cell_t device, cell_t function, cell_t offset, cell_t value);
+cell pci_config_write_byte(cell bus, cell device, cell function, cell offset, cell value);
+cell pci_config_write_word(cell bus, cell device, cell function, cell offset, cell value);
+cell pci_config_write_dword(cell bus, cell device, cell function, cell offset, cell value);
+cell pci_config_write_qword(cell bus, cell device, cell function, cell offset, cell value);
 
-// Kernel functions
-cell_t get_proc_address(const char* name);
+cell get_proc_address(const char* name);
 
-// Function invocation
-cell_t invoke(
-  cell_t address,
-  cell_t& retval,
-  cell_t a0,
-  cell_t a1,
-  cell_t a2,
-  cell_t a3,
-  cell_t a4,
-  cell_t a5,
-  cell_t a6,
-  cell_t a7,
-  cell_t a8,
-  cell_t a9,
-  cell_t a10,
-  cell_t a11,
-  cell_t a12,
-  cell_t a13,
-  cell_t a14,
-  cell_t a15
+cell invoke(
+  cell address,
+  cell& retval,
+  cell a0,
+  cell a1,
+  cell a2,
+  cell a3,
+  cell a4,
+  cell a5,
+  cell a6,
+  cell a7,
+  cell a8,
+  cell a9,
+  cell a10,
+  cell a11,
+  cell a12,
+  cell a13,
+  cell a14,
+  cell a15
 );
 
-// Timing
-cell_t microsleep(cell_t us);
-cell_t microsleep2(cell_t us);
+cell microsleep(cell us);
+cell microsleep2(cell us);
 
-cell_t qpc(cell_t& frequency);
+cell qpc(cell& frequency);
 
 #if defined(ARCH_A64)
-// ARM64-specific functions (if any)
 
-#elif defined(ARCH_X64) || defined(ARCH_X86)
-// x86/x64-specific functions
+#elif defined(ARCH_X64)
 
-// Dell SMM interface (order: eax ecx edx ebx esi edi)
-cell_t query_dell_smm(std::array<cell_t, 6> in, std::array<cell_t, 6>& out);
+// order: eax ecx edx ebx esi edi
+cell query_dell_smm(std::array<cell, 6> in, std::array<cell, 6>& out);
 
-// Port I/O
-void io_out_byte(cell_t port, cell_t value);
-void io_out_word(cell_t port, cell_t value);
-void io_out_dword(cell_t port, cell_t value);
+void io_out_byte(cell port, cell value);
+void io_out_word(cell port, cell value);
+void io_out_dword(cell port, cell value);
 
-cell_t io_in_byte(cell_t port);
-cell_t io_in_word(cell_t port);
-cell_t io_in_dword(cell_t port);
+cell io_in_byte(cell port);
+cell io_in_word(cell port);
+cell io_in_dword(cell port);
 
-// LWPCB (Lightweight Profiling)
-void llwpcb(cell_t addr);
-cell_t slwpcb();
+void llwpcb(cell addr);
+cell slwpcb();
 
-// CPUID (order: eax ebx ecx edx)
-void cpuid(cell_t leaf, cell_t subleaf, std::array<cell_t, 4>& out);
+// order: eax ebx ecx edx
+void cpuid(cell leaf, cell subleaf, std::array<cell, 4>& out);
 
-// Control registers
-cell_t cr_read(cell_t cr);
-void cr_write(cell_t cr, cell_t value);
+cell cr_read(cell cr);
+void cr_write(cell cr, cell value);
 
-// Debug registers
-cell_t dr_read(cell_t dr);
-void dr_write(cell_t dr, cell_t value);
+cell dr_read(cell dr);
+void dr_write(cell dr, cell value);
 
-// Extended control registers
-cell_t xcr_read(cell_t xcr, cell_t& value);
-cell_t xcr_write(cell_t xcr, cell_t value);
+cell xcr_read(cell xcr, cell& value);
+cell xcr_write(cell xcr, cell value);
 
-// TLB management
-void invlpg(cell_t va);
-void invpcid(cell_t type, cell_t descriptor);
+void invlpg(cell va);
+void invpcid(cell type, cell descriptor);
 
-// Performance monitoring
-cell_t readpmc(cell_t pmc, cell_t& value);
+cell readpmc(cell pmc, cell& value);
 
-// Time stamp counter
-cell_t rdtsc();
-cell_t rdtscp(cell_t& pid);
+cell rdtsc();
+cell rdtscp(cell& pid);
 
-// Random number generation
-cell_t rdrand(cell_t& v);
-cell_t rdseed(cell_t& v);
+cell rdrand(cell& v);
+cell rdseed(cell& v);
 
-// Descriptor tables
-void lidt(cell_t limit, cell_t base);
-void sidt(cell_t& limit, cell_t& base);
+void lidt(cell limit, cell base);
+void sidt(cell& limit, cell& base);
 
-void lgdt(cell_t limit, cell_t base);
-void sgdt(cell_t& limit, cell_t& base);
+void lgdt(cell limit, cell base);
+void sgdt(cell& limit, cell& base);
 
-// MXCSR register
-cell_t mxcsr_read();
-void mxcsr_write(cell_t v);
+cell mxcsr_read();
+void mxcsr_write(cell v);
 
-// Supervisor mode access prevention
 void stac();
 void clac();
 
-// System instructions
 void halt();
+
 void ud2();
+
 void int3();
+
 void int2c();
+
 void wbinvd();
 
 #endif

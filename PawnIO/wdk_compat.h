@@ -1,31 +1,195 @@
-// WDK Compatibility Header
-// Provides missing definitions from newer WDK versions for x86 builds using WDK 10.0.19041
-
 #pragma once
 
-// PCUCHAR type (added in later WDK)
+// WDK compatibility layer for older SDK versions
+// Provides missing types, constants, and macros for x86 builds
+
+#ifdef ARCH_X86
+#include <ntdef.h>
+#include <intrin.h>
+
+// x86-specific intrinsic declarations
+#ifndef _InterlockedCompareExchangePointer
+#define _InterlockedCompareExchangePointer(Destination, Exchange, Comparand) \
+    ((PVOID)_InterlockedCompareExchange((LONG volatile *)(Destination), (LONG)(Exchange), (LONG)(Comparand)))
+#endif
+
+// Declare intrinsics that may not be available in older toolsets
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+// CPU control intrinsics
+void _disable(void);
+void _enable(void);
+unsigned __int64 __readmsr(unsigned long);
+void __writemsr(unsigned long, unsigned __int64);
+unsigned __int64 _xgetbv(unsigned int);
+void _xsetbv(unsigned int, unsigned __int64);
+
+// I/O port intrinsics
+void __outbyte(unsigned short, unsigned char);
+void __outword(unsigned short, unsigned short);
+void __outdword(unsigned short, unsigned long);
+unsigned char __inbyte(unsigned short);
+unsigned short __inword(unsigned short);
+unsigned long __indword(unsigned short);
+
+// RDTSC intrinsics
+unsigned __int64 __rdtsc(void);
+unsigned __int64 __rdtscp(unsigned int*);
+
+// Random intrinsics
+int _rdrand32_step(unsigned int*);
+int _rdseed32_step(unsigned int*);
+
+// Descriptor table intrinsics
+void __lidt(void*);
+void __sidt(void*);
+void _lgdt(void*);
+void _sgdt(void*);
+
+// SSE control
+unsigned int _mm_getcsr(void);
+void _mm_setcsr(unsigned int);
+
+// Supervisor intrinsics
+void _stac(void);
+void _clac(void);
+void __halt(void);
+void __ud2(void);
+void __int2c(void);
+void __wbinvd(void);
+void __debugbreak(void);
+void __invlpg(void*);
+void _invpcid(unsigned int, void*);
+unsigned __int64 __readpmc(unsigned long);
+
+#ifdef __cplusplus
+}
+#endif
+
+#pragma intrinsic(_disable, _enable)
+#pragma intrinsic(__readmsr, __writemsr)
+#pragma intrinsic(__outbyte, __outword, __outdword)
+#pragma intrinsic(__inbyte, __inword, __indword)
+#pragma intrinsic(__rdtsc)
+#pragma intrinsic(__halt, __ud2, __debugbreak)
+#pragma intrinsic(__lidt, __sidt)
+
+#endif // ARCH_X86
+
+#include <ntddk.h>
+
+// Missing type definitions
 #ifndef PCUCHAR
-typedef const UCHAR *PCUCHAR;
+typedef const unsigned char* PCUCHAR;
 #endif
 
-// FAST_FAIL constants (added in later WDK)
-#ifndef FAST_FAIL_INVALID_THREAD_STATE
-#define FAST_FAIL_INVALID_THREAD_STATE 0x4A
+// Fast fail codes (missing in older WDK)
+#ifndef FAST_FAIL_LEGACY_GS_VIOLATION
+#define FAST_FAIL_LEGACY_GS_VIOLATION          0
+#define FAST_FAIL_VTGUARD_CHECK_FAILURE        1
+#define FAST_FAIL_STACK_COOKIE_CHECK_FAILURE   2
+#define FAST_FAIL_CORRUPT_LIST_ENTRY           3
+#define FAST_FAIL_INCORRECT_STACK              4
+#define FAST_FAIL_INVALID_ARG                  5
+#define FAST_FAIL_GS_COOKIE_INIT               6
+#define FAST_FAIL_FATAL_APP_EXIT               7
+#define FAST_FAIL_RANGE_CHECK_FAILURE          8
+#define FAST_FAIL_UNSAFE_REGISTRY_ACCESS       9
+#define FAST_FAIL_GUARD_ICALL_CHECK_FAILURE    10
+#define FAST_FAIL_GUARD_WRITE_CHECK_FAILURE    11
+#define FAST_FAIL_INVALID_FIBER_SWITCH         12
+#define FAST_FAIL_INVALID_SET_OF_CONTEXT       13
+#define FAST_FAIL_INVALID_REFERENCE_COUNT      14
+#define FAST_FAIL_INVALID_JUMP_BUFFER          18
+#define FAST_FAIL_MRDATA_MODIFIED              19
+#define FAST_FAIL_CERTIFICATION_FAILURE        20
+#define FAST_FAIL_INVALID_EXCEPTION_CHAIN      21
+#define FAST_FAIL_CRYPTO_LIBRARY               22
+#define FAST_FAIL_INVALID_CALL_IN_DLL_CALLOUT  23
+#define FAST_FAIL_INVALID_IMAGE_BASE           24
+#define FAST_FAIL_DLOAD_PROTECTION_FAILURE     25
+#define FAST_FAIL_UNSAFE_EXTENSION_CALL        26
+#define FAST_FAIL_DEPRECATED_SERVICE_INVOKED   27
+#define FAST_FAIL_INVALID_BUFFER_ACCESS        28
+#define FAST_FAIL_INVALID_BALANCED_TREE        29
+#define FAST_FAIL_INVALID_NEXT_THREAD          30
+#define FAST_FAIL_GUARD_ICALL_CHECK_SUPPRESSED 31
+#define FAST_FAIL_APCS_DISABLED                32
+#define FAST_FAIL_INVALID_IDLE_STATE           33
+#define FAST_FAIL_MRDATA_PROTECTION_FAILURE    34
+#define FAST_FAIL_UNEXPECTED_HEAP_EXCEPTION    35
+#define FAST_FAIL_INVALID_LOCK_STATE           36
+#define FAST_FAIL_GUARD_JUMPTABLE              37
+#define FAST_FAIL_INVALID_LONGJUMP_TARGET      38
+#define FAST_FAIL_INVALID_DISPATCH_CONTEXT     39
+#define FAST_FAIL_INVALID_THREAD               40
+#define FAST_FAIL_INVALID_SYSCALL_NUMBER       41
+#define FAST_FAIL_INVALID_FILE_OPERATION       42
+#define FAST_FAIL_LPAC_ACCESS_DENIED           43
+#define FAST_FAIL_GUARD_SS_FAILURE             44
+#define FAST_FAIL_LOADER_CONTINUITY_FAILURE    45
+#define FAST_FAIL_GUARD_EXPORT_SUPPRESSION_FAILURE 46
+#define FAST_FAIL_INVALID_CONTROL_STACK        47
+#define FAST_FAIL_SET_CONTEXT_DENIED           48
+#define FAST_FAIL_INVALID_IAT                  49
+#define FAST_FAIL_HEAP_METADATA_CORRUPTION     50
+#define FAST_FAIL_PAYLOAD_RESTRICTION_VIOLATION 51
+#define FAST_FAIL_LOW_LABEL_ACCESS_DENIED      52
+#define FAST_FAIL_ENCLAVE_CALL_FAILURE         53
+#define FAST_FAIL_UNHANDLED_LSS_EXCEPTON       54
+#define FAST_FAIL_ADMINLESS_ACCESS_DENIED      55
+#define FAST_FAIL_UNEXPECTED_CALL              56
+#define FAST_FAIL_CONTROL_INVALID_RETURN_ADDRESS 57
+#define FAST_FAIL_UNEXPECTED_HOST_BEHAVIOR     58
+#define FAST_FAIL_FLAGS_CORRUPTION             59
+#define FAST_FAIL_VEH_CORRUPTION               60
+#define FAST_FAIL_ETW_CORRUPTION               61
+#define FAST_FAIL_RIO_ABORT                    62
+#define FAST_FAIL_INVALID_PFN                  63
+#define FAST_FAIL_GUARD_ICALL_CHECK_FAILURE_XFG 64
+#define FAST_FAIL_CAST_GUARD                   65
+#define FAST_FAIL_HOST_VISIBILITY_CHANGE       66
+#define FAST_FAIL_KERNEL_CET_SHADOW_STACK_ASSIST 67
+#define FAST_FAIL_PATCH_CALLBACK_FAILED        68
+#define FAST_FAIL_NTDLL_PATCH_FAILED           69
+#define FAST_FAIL_INVALID_FLS_DATA             70
+#define FAST_FAIL_INVALID_THREAD_STATE         71
+#define FAST_FAIL_ASAN_ERROR                   72
+#define FAST_FAIL_INVALID_FAST_FAIL_CODE       0xFFFFFFFF
 #endif
 
-#ifndef FAST_FAIL_ASAN_ERROR
-#define FAST_FAIL_ASAN_ERROR 0x4B
-#endif
-
-// SDDL constants are defined in driver.cpp as UNICODE_STRING, not needed here
-
-// DECLARE_CONST_UNICODE_STRING macro (added in later WDK)
+// Missing Unicode string macros
 #ifndef DECLARE_CONST_UNICODE_STRING
-#define DECLARE_CONST_UNICODE_STRING(name, str) \
-    const UNICODE_STRING name = RTL_CONSTANT_STRING(str)
+#define DECLARE_CONST_UNICODE_STRING(_variablename, _string) \
+    __pragma(warning(push)) \
+    __pragma(warning(disable:4211)) \
+    __pragma(warning(disable:4221)) \
+    extern const __declspec(selectany) WCHAR _variablename ## _buffer[] = _string; \
+    extern const __declspec(selectany) UNICODE_STRING _variablename = { sizeof(_string) - sizeof(WCHAR), sizeof(_string), (PWCH) _variablename ## _buffer }; \
+    __pragma(warning(pop))
 #endif
 
-// RTL_CONSTANT_STRING macro (if not defined)
 #ifndef RTL_CONSTANT_STRING
-#define RTL_CONSTANT_STRING(s) { sizeof(s) - sizeof((s)[0]), sizeof(s), (PWSTR)(s) }
+#define RTL_CONSTANT_STRING(s) { sizeof(s) - sizeof((s)[0]), sizeof(s), (PWCH)s }
+#endif
+
+// Additional compatibility definitions
+#ifndef NT_ASSERT
+#define NT_ASSERT(exp) ASSERT(exp)
+#endif
+
+#ifndef NT_VERIFY
+#define NT_VERIFY(exp) ASSERT(exp)
+#endif
+
+// Missing security descriptor constants
+#ifndef SDDL_DEVOBJ_SYS_ALL_ADM_ALL
+#define SDDL_DEVOBJ_SYS_ALL_ADM_ALL TEXT("D:P(A;;GA;;;SY)(A;;GA;;;BA)")
+#endif
+
+// Missing IoCreateDeviceSecure name constant
+#ifndef NAME_IoCreateDeviceSecure
+#define NAME_IoCreateDeviceSecure "IoCreateDeviceSecure"
 #endif

@@ -56,9 +56,9 @@ PAWNIO_PUBLICAPI ULONG pawnio_version();
 /// Structure that holds a trusted public key and its length.
 struct trusted_pubkey {
   /// Pointer to the raw public key data.
-  PCUCHAR data;
+  const unsigned char* pubkey_data;
   /// Length of the public key data in bytes.
-  ULONG_PTR len;
+  ULONG_PTR pubkey_len;
 };
 
 /// Returns an array of trusted public keys.
@@ -89,7 +89,7 @@ PAWNIO_PUBLICAPI void pawnio_unregister_vm_callback_created(PVOID cookie);
 /// 
 /// @param ctx Context pointer to the VM.
 /// @param cip Code instruction pointer/function address to be executed.
-///            This is UINT_PTR (32-bit on x86, 64-bit on x64).
+///            Note: UINT_PTR is architecture-aware (32-bit on x86, 64-bit on x64)
 /// @return Status code indicating whether to block or allow the execution.
 typedef NTSTATUS pawnio_vm_callback_precall(PVOID ctx, UINT_PTR cip);
 typedef pawnio_vm_callback_precall* ppawnio_vm_callback_precall;

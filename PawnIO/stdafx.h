@@ -48,9 +48,22 @@
 
 #define INITGUID
 
+// Define endianness for Pawn VM
+#define LITTLE_ENDIAN
+
+// Include WDK compatibility layer for x86 builds BEFORE ntddk.h
+#if defined(_M_IX86) || defined(__i386__) || defined(i386) || defined(_X86_)
+#define ARCH_X86 1
+#endif
+
 #include <ntddk.h>
 
-#include <intrin.h>
+#ifdef ARCH_X86
+#include "wdk_compat.h"
+#include "x86_linker_fix.h"
+#endif
+
+#include "version.h"
 #include <bcrypt.h>
 #include <malloc.h>
 
@@ -64,8 +77,3 @@
 #include <utility>
 #include <bit>
 #include <shared_mutex>
-
-// WDK compatibility for x86 builds with older WDK
-#ifdef _X86_
-#include "wdk_compat.h"
-#endif

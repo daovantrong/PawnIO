@@ -1,0 +1,40 @@
+LIBRARY PawnIO.sys
+EXPORTS
+    ; Forward kernel API calls with proper x86 decorations
+    ; Format: ImportName=LibraryName.ExportName
+    
+    ; ntoskrnl.exe exports
+    ExFreePoolWithTag@8=ntoskrnl.ExFreePoolWithTag
+    ExInitializeResourceLite@4=ntoskrnl.ExInitializeResourceLite
+    ExAcquireResourceSharedLite@8=ntoskrnl.ExAcquireResourceSharedLite
+    ExAcquireResourceExclusiveLite@8=ntoskrnl.ExAcquireResourceExclusiveLite
+    ExReleaseResourceLite@4=ntoskrnl.ExReleaseResourceLite
+    ExDeleteResourceLite@4=ntoskrnl.ExDeleteResourceLite
+    IoDeleteDevice@4=ntoskrnl.IoDeleteDevice
+    KeDelayExecutionThread@12=ntoskrnl.KeDelayExecutionThread
+    KeSetSystemGroupAffinityThread@8=ntoskrnl.KeSetSystemGroupAffinityThread
+    KeRevertToUserGroupAffinityThread@4=ntoskrnl.KeRevertToUserGroupAffinityThread
+    KeQueryActiveProcessorCountEx@2=ntoskrnl.KeQueryActiveProcessorCountEx
+    KeGetProcessorNumberFromIndex=ntoskrnl.KeGetProcessorNumberFromIndex
+    MmMapIoSpace@12=ntoskrnl.MmMapIoSpace
+    MmUnmapIoSpace@8=ntoskrnl.MmUnmapIoSpace
+    KeQueryPerformanceCounter@4=ntoskrnl.KeQueryPerformanceCounter
+    KeStallExecutionProcessor@4=ntoskrnl.KeStallExecutionProcessor
+    MmGetVirtualForPhysical@8=ntoskrnl.MmGetVirtualForPhysical
+    KeInitializeEvent@12=ntoskrnl.KeInitializeEvent
+    
+    ; hal.dll exports
+    HalSetBusDataByOffset@24=hal.HalSetBusDataByOffset
+    HalGetBusDataByOffset@24=hal.HalGetBusDataByOffset
+    
+    ; bcrypt.lib exports
+    BCryptOpenAlgorithmProvider@16=bcrypt.BCryptOpenAlgorithmProvider
+    BCryptGetProperty@24=bcrypt.BCryptGetProperty
+    BCryptCloseAlgorithmProvider@8=bcrypt.BCryptCloseAlgorithmProvider
+    BCryptImportKeyPair@28=bcrypt.BCryptImportKeyPair
+    BCryptDestroyKey@4=bcrypt.BCryptDestroyKey
+    BCryptVerifySignature@28=bcrypt.BCryptVerifySignature
+    BCryptCreateHash@28=bcrypt.BCryptCreateHash
+    BCryptHashData@16=bcrypt.BCryptHashData
+    BCryptFinishHash@16=bcrypt.BCryptFinishHash
+    BCryptDestroyHash@4=bcrypt.BCryptDestroyHash

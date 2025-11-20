@@ -50,158 +50,174 @@
 
 #pragma warning(disable: 4309)
 
-cell_t get_arch() {
-  return get_architecture_id();
+cell get_arch() {
+  return ARCH;
 }
 
-cell_t cpu_count() {
-  return (cell_t)KeQueryActiveProcessorCountEx(ALL_PROCESSOR_GROUPS);
+cell cpu_count() {
+  return KeQueryActiveProcessorCountEx(ALL_PROCESSOR_GROUPS);
 }
 
-cell_t cpu_set_affinity(cell_t which, affinity_storage_t& old) {
+cell cpu_set_affinity(cell which, std::array<cell, 2>& old) {
   PROCESSOR_NUMBER pnum{};
   const auto status = KeGetProcessorNumberFromIndex((ULONG)which, &pnum);
   if (!NT_SUCCESS(status))
-    return (cell_t)(scell_t)status;
+    return (cell)(scell)status;
 
   GROUP_AFFINITY ga{}, old_ga{};
   ga.Group = pnum.Group;
+#ifdef ARCH_X86
+  ga.Mask = (KAFFINITY)(1u << pnum.Number);
+#else
   ga.Mask = 1ull << pnum.Number;
+#endif
   KeSetSystemGroupAffinityThread(&ga, &old_ga);
-  static_assert(sizeof(old_ga) <= sizeof(affinity_storage_t), "GROUP_AFFINITY too large");
+#ifdef ARCH_X86
+  // On x86, GROUP_AFFINITY is 12 bytes, cell[2] is 8 bytes - store what fits
+  old[0] = (cell)old_ga.Mask;
+  old[1] = (cell)old_ga.Group;
+#else
+  static_assert(sizeof(old_ga) == sizeof(cell[2]), "!!!");
   memcpy(old.data(), &old_ga, sizeof(old_ga));
-  return (cell_t)(scell_t)(old_ga.Group == 0 && old_ga.Mask == 0 ? STATUS_UNSUCCESSFUL : STATUS_SUCCESS);
+#endif
+  return (cell)(scell)(old_ga.Group == 0 && old_ga.Mask == 0 ? STATUS_UNSUCCESSFUL : STATUS_SUCCESS);
 }
 
-cell_t cpu_restore_affinity(affinity_storage_t old) {
+cell cpu_restore_affinity(std::array<cell, 2> old) {
   GROUP_AFFINITY ga{};
-  static_assert(sizeof(ga) <= sizeof(affinity_storage_t), "GROUP_AFFINITY too large");
+#ifdef ARCH_X86
+  // On x86, reconstruct from stored values
+  ga.Mask = (KAFFINITY)old[0];
+  ga.Group = (USHORT)old[1];
+#else
+  static_assert(sizeof(ga) == sizeof(cell[2]), "!!!");
   memcpy(&ga, old.data(), sizeof(ga));
+#endif
   if (ga.Group == 0 && ga.Mask == 0)
-    return (cell_t)(scell_t)STATUS_UNSUCCESSFUL; // some idiot passed in the output of a failed cpu_set_affinity
+    return (cell)(scell)STATUS_UNSUCCESSFUL; // some idiot passed in the output of a failed cpu_set_affinity
   KeRevertToUserGroupAffinityThread(&ga);
-  return (cell_t)(scell_t)STATUS_SUCCESS;
+  return (cell)(scell)STATUS_SUCCESS;
 }
 
 void interrupts_disable() { _disable(); }
 void interrupts_enable() { _enable(); }
 
 template <typename T>
-static cell_t physical_read(cell_t pa, cell_t& v) {
+static cell physical_read(cell pa, cell& v) {
   PHYSICAL_ADDRESS phys;
   phys.QuadPart = (LONGLONG)pa;
   const auto va = MmGetVirtualForPhysical(phys);
   if (!va)
-    return (cell_t)(scell_t)STATUS_UNSUCCESSFUL;
+    return (cell)(scell)STATUS_UNSUCCESSFUL;
   __try {
-    v = (cell_t)*(T*)va;
-    return (cell_t)(scell_t)STATUS_SUCCESS;
+    v = (cell)*(T*)va;
+    return (cell)(scell)STATUS_SUCCESS;
   } __except (EXCEPTION_EXECUTE_HANDLER) {
-    return (cell_t)(scell_t)GetExceptionCode();
+    return (cell)(scell)GetExceptionCode();
   }
 }
 
 template <typename T>
-static cell_t physical_write(cell_t pa, cell_t v) {
+static cell physical_write(cell pa, cell v) {
   PHYSICAL_ADDRESS phys;
   phys.QuadPart = (LONGLONG)pa;
   const auto va = MmGetVirtualForPhysical(phys);
   if (!va)
-    return (cell_t)(scell_t)STATUS_UNSUCCESSFUL;
+    return (cell)(scell)STATUS_UNSUCCESSFUL;
   __try {
     *(T*)va = (T)v;
-    return (cell_t)(scell_t)STATUS_SUCCESS;
+    return (cell)(scell)STATUS_SUCCESS;
   } __except (EXCEPTION_EXECUTE_HANDLER) {
-    return (cell_t)(scell_t)GetExceptionCode();
+    return (cell)(scell)GetExceptionCode();
   }
 }
 
-cell_t physical_read_byte(cell_t pa, cell_t& value) { return physical_read<UCHAR>(pa, value); }
-cell_t physical_read_word(cell_t pa, cell_t& value) { return physical_read<USHORT>(pa, value); }
-cell_t physical_read_dword(cell_t pa, cell_t& value) { return physical_read<ULONG>(pa, value); }
-cell_t physical_read_qword(cell_t pa, cell_t& value) { return physical_read<ULONG64>(pa, value); }
+cell physical_read_byte(cell pa, cell& value) { return physical_read<UCHAR>(pa, value); }
+cell physical_read_word(cell pa, cell& value) { return physical_read<USHORT>(pa, value); }
+cell physical_read_dword(cell pa, cell& value) { return physical_read<ULONG>(pa, value); }
+cell physical_read_qword(cell pa, cell& value) { return physical_read<ULONG64>(pa, value); }
 
-cell_t physical_write_byte(cell_t pa, cell_t value) { return physical_write<UCHAR>(pa, value); }
-cell_t physical_write_word(cell_t pa, cell_t value) { return physical_write<USHORT>(pa, value); }
-cell_t physical_write_dword(cell_t pa, cell_t value) { return physical_write<ULONG>(pa, value); }
-cell_t physical_write_qword(cell_t pa, cell_t value) { return physical_write<ULONG64>(pa, value); }
+cell physical_write_byte(cell pa, cell value) { return physical_write<UCHAR>(pa, value); }
+cell physical_write_word(cell pa, cell value) { return physical_write<USHORT>(pa, value); }
+cell physical_write_dword(cell pa, cell value) { return physical_write<ULONG>(pa, value); }
+cell physical_write_qword(cell pa, cell value) { return physical_write<ULONG64>(pa, value); }
 
-cell_t io_space_map(cell_t pa, cell_t size) {
+cell io_space_map(cell pa, cell size) {
   PHYSICAL_ADDRESS physical;
-  physical.QuadPart = (scell_t)pa;
-  return (cell_t)MmMapIoSpace(physical, (SIZE_T)size, MmNonCached);
+  physical.QuadPart = (scell)pa;
+  return (cell)MmMapIoSpace(physical, size, MmNonCached);
 }
 
-void io_space_unmap(cell_t va, cell_t size) {
-  MmUnmapIoSpace((PVOID)(uptr_t)va, (SIZE_T)size);
+void io_space_unmap(cell va, cell size) {
+  MmUnmapIoSpace((PVOID)va, size);
 }
 
 template <typename T>
-static cell_t virtual_read(cell_t va, cell_t& v) {
+static cell virtual_read(cell va, cell& v) {
   __try {
-    v = (cell_t)*(T*)(uptr_t)va;
-    return (cell_t)(scell_t)STATUS_SUCCESS;
+    v = (cell)*(T*)va;
+    return (cell)(scell)STATUS_SUCCESS;
   } __except (EXCEPTION_EXECUTE_HANDLER) {
-    return (cell_t)(scell_t)GetExceptionCode();
+    return (cell)(scell)GetExceptionCode();
   }
 }
 
 template <typename T>
-static cell_t virtual_write(cell_t va, cell_t v) {
+static cell virtual_write(cell va, cell v) {
   __try {
-    *(T*)(uptr_t)va = (T)v;
-    return (cell_t)(scell_t)STATUS_SUCCESS;
+    *(T*)va = (T)v;
+    return (cell)(scell)STATUS_SUCCESS;
   } __except (EXCEPTION_EXECUTE_HANDLER) {
-    return (cell_t)(scell_t)GetExceptionCode();
+    return (cell)(scell)GetExceptionCode();
   }
 }
 
 template <typename T>
-static cell_t virtual_cmpxchg(cell_t va, cell_t exchange, cell_t comparand) {
+static cell virtual_cmpxchg(cell va, cell exchange, cell comparand) {
   __try {
     bool success = false;
     switch (sizeof(T)) {
     case 1:
-      success = (char)comparand == _InterlockedCompareExchange8((char volatile*)(uptr_t)va, (char)exchange, (char)comparand);
+      success = (char)comparand == _InterlockedCompareExchange8((char volatile*)va, (char)exchange, (char)comparand);
       break;
     case 2:
-      success = (short)comparand == _InterlockedCompareExchange16((short volatile*)(uptr_t)va, (short)exchange, (short)comparand);
+      success = (short)comparand == _InterlockedCompareExchange16((short volatile*)va, (short)exchange, (short)comparand);
       break;
     case 4:
-      success = (long)comparand == _InterlockedCompareExchange((long volatile*)(uptr_t)va, (long)exchange, (long)comparand);
+      success = (long)comparand == _InterlockedCompareExchange((long volatile*)va, (long)exchange, (long)comparand);
       break;
     case 8:
-      success = (int64_t)comparand == _InterlockedCompareExchange64((int64_t volatile*)(uptr_t)va, (int64_t)exchange, (int64_t)comparand);
+      success = (int64_t)comparand == _InterlockedCompareExchange64((int64_t volatile*)va, (int64_t)exchange, (int64_t)comparand);
       break;
     default:
       break;
     }
-    return (cell_t)(scell_t)(success ? STATUS_SUCCESS : STATUS_UNSUCCESSFUL);
+    return (cell)(scell)(success ? STATUS_SUCCESS : STATUS_UNSUCCESSFUL);
   } __except (EXCEPTION_EXECUTE_HANDLER) {
-    return (cell_t)(scell_t)GetExceptionCode();
+    return (cell)(scell)GetExceptionCode();
   }
 }
 
-cell_t virtual_read_byte(cell_t va, cell_t& value) { return virtual_read<UCHAR>(va, value); }
-cell_t virtual_read_word(cell_t va, cell_t& value) { return virtual_read<USHORT>(va, value); }
-cell_t virtual_read_dword(cell_t va, cell_t& value) { return virtual_read<ULONG>(va, value); }
-cell_t virtual_read_qword(cell_t va, cell_t& value) { return virtual_read<ULONG64>(va, value); }
+cell virtual_read_byte(cell va, cell& value) { return virtual_read<UCHAR>(va, value); }
+cell virtual_read_word(cell va, cell& value) { return virtual_read<USHORT>(va, value); }
+cell virtual_read_dword(cell va, cell& value) { return virtual_read<ULONG>(va, value); }
+cell virtual_read_qword(cell va, cell& value) { return virtual_read<ULONG64>(va, value); }
 
-cell_t virtual_write_byte(cell_t va, cell_t value) { return virtual_write<UCHAR>(va, value); }
-cell_t virtual_write_word(cell_t va, cell_t value) { return virtual_write<USHORT>(va, value); }
-cell_t virtual_write_dword(cell_t va, cell_t value) { return virtual_write<ULONG>(va, value); }
-cell_t virtual_write_qword(cell_t va, cell_t value) { return virtual_write<ULONG64>(va, value); }
+cell virtual_write_byte(cell va, cell value) { return virtual_write<UCHAR>(va, value); }
+cell virtual_write_word(cell va, cell value) { return virtual_write<USHORT>(va, value); }
+cell virtual_write_dword(cell va, cell value) { return virtual_write<ULONG>(va, value); }
+cell virtual_write_qword(cell va, cell value) { return virtual_write<ULONG64>(va, value); }
 
-cell_t virtual_cmpxchg_byte2(cell_t va, cell_t exchange, cell_t comparand) { return virtual_cmpxchg<UCHAR>(va, exchange, comparand); }
-cell_t virtual_cmpxchg_word2(cell_t va, cell_t exchange, cell_t comparand) { return virtual_cmpxchg<USHORT>(va, exchange, comparand); }
-cell_t virtual_cmpxchg_dword2(cell_t va, cell_t exchange, cell_t comparand) { return virtual_cmpxchg<ULONG>(va, exchange, comparand); }
-cell_t virtual_cmpxchg_qword2(cell_t va, cell_t exchange, cell_t comparand) { return virtual_cmpxchg<ULONG64>(va, exchange, comparand); }
+cell virtual_cmpxchg_byte2(cell va, cell exchange, cell comparand) { return virtual_cmpxchg<UCHAR>(va, exchange, comparand); }
+cell virtual_cmpxchg_word2(cell va, cell exchange, cell comparand) { return virtual_cmpxchg<USHORT>(va, exchange, comparand); }
+cell virtual_cmpxchg_dword2(cell va, cell exchange, cell comparand) { return virtual_cmpxchg<ULONG>(va, exchange, comparand); }
+cell virtual_cmpxchg_qword2(cell va, cell exchange, cell comparand) { return virtual_cmpxchg<ULONG64>(va, exchange, comparand); }
 
-cell_t virtual_alloc(cell_t size) {
-  return (cell_t)ExAllocatePoolZero(NonPagedPoolNx, size, 'nwaP');
+cell virtual_alloc(cell size) {
+  return (cell)ExAllocatePoolZero(NonPagedPoolNx, size, 'nwaP');
 }
 
-void virtual_free(cell_t va) {
+void virtual_free(cell va) {
   ExFreePoolWithTag((PVOID)va, 'nwaP');
 }
 
@@ -295,30 +311,30 @@ static NTSTATUS pci_config_write_raw(ULONG bus, ULONG device, ULONG function, UL
 #pragma warning(pop)
 
 template <typename T>
-FORCEINLINE static cell_t pci_config_read(cell_t bus, cell_t device, cell_t function, cell_t offset, cell_t& value) {
+FORCEINLINE static cell pci_config_read(cell bus, cell device, cell function, cell offset, cell& value) {
   T t{};
-  const auto status = (cell_t)(scell_t)pci_config_read_raw((ULONG)bus, (ULONG)device, (ULONG)function, (ULONG)offset, &t, sizeof(t));
-  value = (cell_t)t;
+  const auto status = (cell)(scell)pci_config_read_raw((ULONG)bus, (ULONG)device, (ULONG)function, (ULONG)offset, &t, sizeof(t));
+  value = t;
   return status;
 }
 
 template <typename T>
-FORCEINLINE static cell_t pci_config_write(cell_t bus, cell_t device, cell_t function, cell_t offset, cell_t value) {
+FORCEINLINE static cell pci_config_write(cell bus, cell device, cell function, cell offset, cell value) {
   T t{(T)value};
-  return (cell_t)(scell_t)pci_config_write_raw((ULONG)bus, (ULONG)device, (ULONG)function, (ULONG)offset, &t, sizeof(t));
+  return (cell)(scell)pci_config_write_raw((ULONG)bus, (ULONG)device, (ULONG)function, (ULONG)offset, &t, sizeof(t));
 }
 
-cell_t pci_config_read_byte(cell_t bus, cell_t device, cell_t function, cell_t offset, cell_t& value) { return pci_config_read<UCHAR>(bus, device, function, offset, value); }
-cell_t pci_config_read_word(cell_t bus, cell_t device, cell_t function, cell_t offset, cell_t& value) { return pci_config_read<USHORT>(bus, device, function, offset, value); }
-cell_t pci_config_read_dword(cell_t bus, cell_t device, cell_t function, cell_t offset, cell_t& value) { return pci_config_read<ULONG>(bus, device, function, offset, value); }
-cell_t pci_config_read_qword(cell_t bus, cell_t device, cell_t function, cell_t offset, cell_t& value) { return pci_config_read<ULONG64>(bus, device, function, offset, value); }
+cell pci_config_read_byte(cell bus, cell device, cell function, cell offset, cell& value) { return pci_config_read<UCHAR>(bus, device, function, offset, value); }
+cell pci_config_read_word(cell bus, cell device, cell function, cell offset, cell& value) { return pci_config_read<USHORT>(bus, device, function, offset, value); }
+cell pci_config_read_dword(cell bus, cell device, cell function, cell offset, cell& value) { return pci_config_read<ULONG>(bus, device, function, offset, value); }
+cell pci_config_read_qword(cell bus, cell device, cell function, cell offset, cell& value) { return pci_config_read<ULONG64>(bus, device, function, offset, value); }
 
-cell_t pci_config_write_byte(cell_t bus, cell_t device, cell_t function, cell_t offset, cell_t value) { return pci_config_write<UCHAR>(bus, device, function, offset, value); }
-cell_t pci_config_write_word(cell_t bus, cell_t device, cell_t function, cell_t offset, cell_t value) { return pci_config_write<USHORT>(bus, device, function, offset, value); }
-cell_t pci_config_write_dword(cell_t bus, cell_t device, cell_t function, cell_t offset, cell_t value) { return pci_config_write<ULONG>(bus, device, function, offset, value); }
-cell_t pci_config_write_qword(cell_t bus, cell_t device, cell_t function, cell_t offset, cell_t value) { return pci_config_write<ULONG64>(bus, device, function, offset, value); }
+cell pci_config_write_byte(cell bus, cell device, cell function, cell offset, cell value) { return pci_config_write<UCHAR>(bus, device, function, offset, value); }
+cell pci_config_write_word(cell bus, cell device, cell function, cell offset, cell value) { return pci_config_write<USHORT>(bus, device, function, offset, value); }
+cell pci_config_write_dword(cell bus, cell device, cell function, cell offset, cell value) { return pci_config_write<ULONG>(bus, device, function, offset, value); }
+cell pci_config_write_qword(cell bus, cell device, cell function, cell offset, cell value) { return pci_config_write<ULONG64>(bus, device, function, offset, value); }
 
-cell_t get_proc_address(const char* name) {
+cell get_proc_address(const char* name) {
   const auto len = strlen(name);
   wchar_t name_w[1024]{};
   const auto maxlen = min(len, std::size(name_w) - 1);
@@ -326,54 +342,54 @@ cell_t get_proc_address(const char* name) {
     name_w[i] = name[i];
   UNICODE_STRING ustr;
   RtlInitUnicodeString(&ustr, name_w);
-  return (cell_t)MmGetSystemRoutineAddress(&ustr);
+  return (cell)MmGetSystemRoutineAddress(&ustr);
 }
 
- __declspec(guard(nocf)) cell_t invoke(
-  cell_t address,
-  cell_t& retval,
-  cell_t a0,
-  cell_t a1,
-  cell_t a2,
-  cell_t a3,
-  cell_t a4,
-  cell_t a5,
-  cell_t a6,
-  cell_t a7,
-  cell_t a8,
-  cell_t a9,
-  cell_t a10,
-  cell_t a11,
-  cell_t a12,
-  cell_t a13,
-  cell_t a14,
-  cell_t a15
+ __declspec(guard(nocf)) cell invoke(
+  cell address,
+  cell& retval,
+  cell a0,
+  cell a1,
+  cell a2,
+  cell a3,
+  cell a4,
+  cell a5,
+  cell a6,
+  cell a7,
+  cell a8,
+  cell a9,
+  cell a10,
+  cell a11,
+  cell a12,
+  cell a13,
+  cell a14,
+  cell a15
 ) {
   const auto p = (uintptr_t(*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t))address;
   __try {
     retval = p(a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15);
-    return (cell_t)(scell_t)STATUS_SUCCESS;
+    return (cell)(scell)STATUS_SUCCESS;
   } __except (EXCEPTION_EXECUTE_HANDLER) {
-    return (cell_t)(scell_t)GetExceptionCode();
+    return (cell)(scell)GetExceptionCode();
   }
 }
 
-cell_t microsleep(cell_t us) {
+cell microsleep(cell us) {
   LARGE_INTEGER li;
-  li.QuadPart = (scell_t)us * -10;
-  return (cell_t)(scell_t)KeDelayExecutionThread(KernelMode, FALSE, &li);
+  li.QuadPart = (scell)us * -10;
+  return (cell)(scell)KeDelayExecutionThread(KernelMode, FALSE, &li);
 }
 
-cell_t microsleep2(cell_t us) {
+cell microsleep2(cell us) {
   KeStallExecutionProcessor((ULONG)us);
-  return (cell_t)(scell_t)STATUS_SUCCESS;
+  return (cell)(scell)STATUS_SUCCESS;
 }
 
-cell_t qpc(cell_t& frequency) {
+cell qpc(cell& frequency) {
   LARGE_INTEGER freq{};
   const auto v = KeQueryPerformanceCounter(&freq).QuadPart;
-  frequency = (cell_t)freq.QuadPart;
-  return (cell_t)v;
+  frequency = freq.QuadPart;
+  return v;
 }
 
 #if defined(ARCH_A64)
@@ -381,43 +397,39 @@ cell_t qpc(cell_t& frequency) {
 unsigned arm_mrs(unsigned instruction);
 void arm_msr(unsigned instruction, unsigned v);
 
-cell_t msr_read(cell_t msr, cell_t& value) {
+cell msr_read(cell msr, cell& value) {
   value = 0;
   if ((msr & 0xFFFFFFFFFFF00000) != 0xD5300000) {
-    return (cell_t)(scell_t)STATUS_INVALID_PARAMETER;
+    return (cell)(scell)STATUS_INVALID_PARAMETER;
   }
   __try {
-    value = (cell_t)arm_mrs((ULONG)msr);
-    return (cell_t)(scell_t)STATUS_SUCCESS;
+    value = (cell)arm_mrs((ULONG)msr);
+    return (cell)(scell)STATUS_SUCCESS;
   } __except (EXCEPTION_EXECUTE_HANDLER) {
-    return (cell_t)(scell_t)GetExceptionCode();
+    return (cell)(scell)GetExceptionCode();
   }
 }
 
-cell_t msr_write(cell_t msr, cell_t value) {
+cell msr_write(cell msr, cell value) {
   if ((msr & 0xFFFFFFFFFFF00000) != 0xD5300000) {
-    return (cell_t)(scell_t)STATUS_INVALID_PARAMETER;
+    return (cell)(scell)STATUS_INVALID_PARAMETER;
   }
 
   __try {
     arm_msr((ULONG)msr, (ULONG)value);
-    return (cell_t)(scell_t)STATUS_SUCCESS;
+    return (cell)(scell)STATUS_SUCCESS;
   } __except (EXCEPTION_EXECUTE_HANDLER) {
-    return (cell_t)(scell_t)GetExceptionCode();
+    return (cell)(scell)GetExceptionCode();
   }
 }
 
 #endif
 
-#if defined(ARCH_X64) || defined(ARCH_X86)
+#if defined(ARCH_X64)
 
-#ifdef ARCH_X86
-extern "C" ULONG __stdcall _dell(ULONG* smm); // Compiler adds _ prefix -> __dell@4
-#else
 extern "C" ULONG __fastcall _dell(ULONG* smm);
-#endif
 
-cell_t query_dell_smm(std::array<cell_t, 6> in, std::array<cell_t, 6>& out) {
+cell query_dell_smm(std::array<cell, 6> in, std::array<cell, 6>& out) {
   ULONG regs[6];
   for (auto i = 0; i < 6; ++i)
     regs[i] = (ULONG)in[i];
@@ -427,108 +439,164 @@ cell_t query_dell_smm(std::array<cell_t, 6> in, std::array<cell_t, 6>& out) {
   return (result == 0 && (regs[0] & 0xFFFF) != 0xFFFF && regs[0] != (ULONG)in[0]);
 }
 
-void io_out_byte(cell_t port, cell_t value) { __outbyte((USHORT)port, (UCHAR)value); }
-void io_out_word(cell_t port, cell_t value) { __outword((USHORT)port, (USHORT)value); }
-void io_out_dword(cell_t port, cell_t value) { __outdword((USHORT)port, (ULONG)value); }
+void io_out_byte(cell port, cell value) { __outbyte((USHORT)port, (UCHAR)value); }
+void io_out_word(cell port, cell value) { __outword((USHORT)port, (USHORT)value); }
+void io_out_dword(cell port, cell value) { __outdword((USHORT)port, (ULONG)value); }
 
-cell_t io_in_byte(cell_t port) { return __inbyte((USHORT)port); }
-cell_t io_in_word(cell_t port) { return __inword((USHORT)port); }
-cell_t io_in_dword(cell_t port) { return __indword((USHORT)port); }
+cell io_in_byte(cell port) { return __inbyte((USHORT)port); }
+cell io_in_word(cell port) { return __inword((USHORT)port); }
+cell io_in_dword(cell port) { return __indword((USHORT)port); }
 
-void llwpcb(cell_t addr) { __llwpcb((void*)(uptr_t)addr); }
-cell_t slwpcb() { return (cell_t)(uptr_t)__slwpcb(); }
+void llwpcb(cell addr) { __llwpcb((void*)addr); }
+cell slwpcb() { return (cell)__slwpcb(); }
 
-cell_t msr_read(cell_t msr, cell_t& value) {
+cell msr_read(cell msr, cell& value) {
   // clamp
   msr = (ULONG)msr;
 
   value = 0;
   __try {
-    value = (cell_t)__readmsr((ULONG)msr);
-    return (cell_t)(scell_t)STATUS_SUCCESS;
+    value = __readmsr((ULONG)msr);
+    return (cell)(scell)STATUS_SUCCESS;
   } __except (EXCEPTION_EXECUTE_HANDLER) {
-    return (cell_t)(scell_t)GetExceptionCode();
+    return (cell)(scell)GetExceptionCode();
   }
 }
 
-cell_t msr_write(cell_t msr, cell_t value) {
+cell msr_write(cell msr, cell value) {
   // clamp
   msr = (ULONG)msr;
 
   __try {
     __writemsr((ULONG)msr, value);
-    return (cell_t)(scell_t)STATUS_SUCCESS;
+    return (cell)(scell)STATUS_SUCCESS;
   } __except (EXCEPTION_EXECUTE_HANDLER) {
-    return (cell_t)(scell_t)GetExceptionCode();
+    return (cell)(scell)GetExceptionCode();
   }
 }
 
-void cpuid(cell_t leaf, cell_t subleaf, std::array<cell_t, 4>& out) {
+#elif defined(ARCH_X86)
+
+// x86 implementations
+extern "C" ULONG __stdcall __dell(ULONG eax_val);
+
+cell query_dell_smm(std::array<cell, 6> in, std::array<cell, 6>& out) {
+  const auto result = __dell((ULONG)in[0]);
+  out[0] = result;
+  for (auto i = 1; i < 6; ++i)
+    out[i] = in[i];
+  return (result != 0xFFFF);
+}
+
+void io_out_byte(cell port, cell value) { __outbyte((USHORT)port, (UCHAR)value); }
+void io_out_word(cell port, cell value) { __outword((USHORT)port, (USHORT)value); }
+void io_out_dword(cell port, cell value) { __outdword((USHORT)port, (ULONG)value); }
+
+cell io_in_byte(cell port) { return __inbyte((USHORT)port); }
+cell io_in_word(cell port) { return __inword((USHORT)port); }
+cell io_in_dword(cell port) { return __indword((USHORT)port); }
+
+cell msr_read(cell msr, cell& value) {
+  msr = (ULONG)msr;
+  value = 0;
+  __try {
+    value = (cell)__readmsr((ULONG)msr);
+    return (cell)(scell)STATUS_SUCCESS;
+  } __except (EXCEPTION_EXECUTE_HANDLER) {
+    return (cell)(scell)GetExceptionCode();
+  }
+}
+
+cell msr_write(cell msr, cell value) {
+  msr = (ULONG)msr;
+  __try {
+    __writemsr((ULONG)msr, (unsigned __int64)value);
+    return (cell)(scell)STATUS_SUCCESS;
+  } __except (EXCEPTION_EXECUTE_HANDLER) {
+    return (cell)(scell)GetExceptionCode();
+  }
+}
+
+#endif // ARCH_X64 or ARCH_X86
+
+#if defined(ARCH_X64) || defined(ARCH_X86)
+
+void cpuid(cell leaf, cell subleaf, std::array<cell, 4>& out) {
   int out32[4];
   __cpuidex(out32, (int)leaf, (int)subleaf);
   for (size_t i = 0; i < 4; ++i)
     out[i] = out32[i];
 }
 
-extern "C" cell_t _crdr(cell_t id, cell_t v);
+extern "C" cell _crdr(cell id, cell v);
 
-static cell_t crdr_wrap(cell_t v, cell_t idx, bool is_cr, bool is_wr) {
-  return _crdr((idx & 0xF) << 3 | (cell_t)is_cr << 7 | (cell_t)is_wr << 8, v);
+static cell crdr_wrap(cell v, cell idx, bool is_cr, bool is_wr) {
+  return _crdr((idx & 0xF) << 3 | (cell)is_cr << 7 | (cell)is_wr << 8, v);
 }
 
-cell_t cr_read(cell_t cr) { return crdr_wrap(0, cr, true, false); }
-void cr_write(cell_t cr, cell_t value) { crdr_wrap(value, cr, true, true); }
+cell cr_read(cell cr) { return crdr_wrap(0, cr, true, false); }
+void cr_write(cell cr, cell value) { crdr_wrap(value, cr, true, true); }
 
-cell_t dr_read(cell_t dr) { return crdr_wrap(0, dr, false, false); }
-void dr_write(cell_t dr, cell_t value) { crdr_wrap(value, dr, false, true); }
+cell dr_read(cell dr) { return crdr_wrap(0, dr, false, false); }
+void dr_write(cell dr, cell value) { crdr_wrap(value, dr, false, true); }
 
-cell_t xcr_read(cell_t xcr, cell_t& value) {
+cell xcr_read(cell xcr, cell& value) {
   value = 0;
   __try {
-    value = (cell_t)_xgetbv((ULONG)xcr);
-    return (cell_t)(scell_t)STATUS_SUCCESS;
+    value = _xgetbv((ULONG)xcr);
+    return (cell)(scell)STATUS_SUCCESS;
   } __except (EXCEPTION_EXECUTE_HANDLER) {
-    return (cell_t)(scell_t)GetExceptionCode();
+    return (cell)(scell)GetExceptionCode();
   }
 }
 
-cell_t xcr_write(cell_t xcr, cell_t value) {
+cell xcr_write(cell xcr, cell value) {
   __try {
     _xsetbv((ULONG)xcr, value);
-    return (cell_t)(scell_t)STATUS_SUCCESS;
+    return (cell)(scell)STATUS_SUCCESS;
   } __except (EXCEPTION_EXECUTE_HANDLER) {
-    return (cell_t)(scell_t)GetExceptionCode();
+    return (cell)(scell)GetExceptionCode();
   }
 }
 
-void invlpg(cell_t va) { __invlpg((void*)(uptr_t)va); }
-void invpcid(cell_t type, cell_t descriptor) { _invpcid((unsigned)type, (void*)(uptr_t)descriptor); }
+void invlpg(cell va) { __invlpg((void*)va); }
+void invpcid(cell type, cell descriptor) { _invpcid((unsigned)type, (void*)descriptor); }
 
-cell_t readpmc(cell_t pmc, cell_t& value) {
+cell readpmc(cell pmc, cell& value) {
   value = 0;
   __try {
-    value = (cell_t)__readpmc((ULONG)pmc);
-    return (cell_t)(scell_t)STATUS_SUCCESS;
+    value = __readpmc((ULONG)pmc);
+    return (cell)(scell)STATUS_SUCCESS;
   } __except (EXCEPTION_EXECUTE_HANDLER) {
-    return (cell_t)(scell_t)GetExceptionCode();
+    return (cell)(scell)GetExceptionCode();
   }
 }
 
-cell_t rdtsc() { return (cell_t)__rdtsc(); }
+cell rdtsc() { return __rdtsc(); }
 
-cell_t rdtscp(cell_t& pid) {
+cell rdtscp(cell& pid) {
   unsigned _pid{};
   const auto res = __rdtscp(&_pid);
-  pid = (cell_t)_pid;
-  return (cell_t)res;
+  pid = _pid;
+  return res;
 }
 
-#ifdef ARCH_X86
-cell_t rdrand(cell_t& v) { return _rdrand32_step((unsigned int*)&v); }
-cell_t rdseed(cell_t& v) { return _rdseed32_step((unsigned int*)&v); }
-#else
-cell_t rdrand(cell_t& v) { return _rdrand64_step((unsigned __int64*)&v); }
-cell_t rdseed(cell_t& v) { return _rdseed64_step((unsigned __int64*)&v); }
+#ifdef ARCH_X64
+cell rdrand(cell& v) { return _rdrand64_step(&v); }
+cell rdseed(cell& v) { return _rdseed64_step(&v); }
+#elif defined(ARCH_X86)
+cell rdrand(cell& v) {
+  unsigned int val;
+  const auto ret = _rdrand32_step(&val);
+  v = val;
+  return ret;
+}
+cell rdseed(cell& v) {
+  unsigned int val;
+  const auto ret = _rdseed32_step(&val);
+  v = val;
+  return ret;
+}
 #endif
 
 __pragma(pack(push, 1))
@@ -538,36 +606,36 @@ struct idtrgdtr {
   uintptr_t base;
 } __pragma(pack(pop));
 
-void lidt(cell_t limit, cell_t base) {
+void lidt(cell limit, cell base) {
   idtrgdtr v{};
   v.limit = (uint16_t)limit;
   v.base = base;
   __lidt(&v);
 }
 
-void sidt(cell_t& limit, cell_t& base) {
+void sidt(cell& limit, cell& base) {
   idtrgdtr v{};
   __sidt(&v);
   limit = v.limit;
   base = v.base;
 }
 
-void lgdt(cell_t limit, cell_t base) {
+void lgdt(cell limit, cell base) {
   idtrgdtr v;
   v.limit = (uint16_t)limit;
   v.base = base;
   _lgdt(&v);
 }
 
-void sgdt(cell_t& limit, cell_t& base) {
+void sgdt(cell& limit, cell& base) {
   idtrgdtr v{};
   _sgdt(&v);
   limit = v.limit;
   base = v.base;
 }
 
-cell_t mxcsr_read() { return _mm_getcsr(); }
-void mxcsr_write(cell_t v) { _mm_setcsr((unsigned)v); }
+cell mxcsr_read() { return _mm_getcsr(); }
+void mxcsr_write(cell v) { _mm_setcsr((unsigned)v); }
 
 void stac() { _stac(); }
 void clac() { _clac(); }
@@ -582,4 +650,4 @@ void int2c() { __int2c(); }
 
 void wbinvd() { __wbinvd(); }
 
-#endif
+#endif // ARCH_X64 || ARCH_X86

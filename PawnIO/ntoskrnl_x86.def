@@ -1,30 +1,92 @@
 LIBRARY ntoskrnl.exe
 EXPORTS
-    ExFreePoolWithTag@8
-    ExInitializeResourceLite@4
-    ExAcquireResourceSharedLite@8
-    ExAcquireResourceExclusiveLite@8
-    ExDeleteResourceLite@4
-    IoDeleteDevice@4
-    KeInitializeEvent@12
-    KeDelayExecutionThread@12
-    KeSetSystemGroupAffinityThread@8
-    KeRevertToUserGroupAffinityThread@4
-    KeQueryActiveProcessorCountEx@4
-    KeGetProcessorNumberFromIndex@8
-    MmMapIoSpace@12
-    MmUnmapIoSpace@8
-    KeQueryPerformanceCounter@4
-    KeStallExecutionProcessor@4
-    MmGetVirtualForPhysical@8
-    HalSetBusDataByOffset@24
-    HalGetBusDataByOffset@24
-    RtlInitUnicodeString@8
+    ; Memory management
+    ExAllocatePoolWithTag
+    ExFreePoolWithTag
+    
+    ; Resource management
+    ExInitializeResourceLite
+    ExDeleteResourceLite
+    ExAcquireResourceExclusiveLite
+    ExAcquireResourceSharedLite
+    ExReleaseResourceLite
+    
+    ; Synchronization
+    KeInitializeSpinLock
+    KeAcquireSpinLock
+    KeReleaseSpinLock
+    KeInitializeMutex
+    KeWaitForSingleObject
+    KeReleaseMutex
+    
+    ; I/O Manager
+    IoCreateDevice
+    IoDeleteDevice
+    IoCreateSymbolicLink
+    IoDeleteSymbolicLink
+    
+    ; String functions
+    RtlInitUnicodeString
+    RtlCompareUnicodeString
+    RtlCopyUnicodeString
+    
+    ; Debug
     DbgPrint
-    vDbgPrintEx@16
-    KeBugCheckEx@20
-    IsProcessorFeaturePresent@4
-    ExAllocatePoolWithTag@12
-    ExReleaseResourceLite@4=@ExReleaseResourceLite@4
-    MmGetSystemRoutineAddress@4
-    IofCompleteRequest@8=@IofCompleteRequest@8
+    DbgPrintEx
+    
+    ; Bug check
+    KeBugCheckEx
+    
+    ; Interlocked operations
+    InterlockedIncrement
+    InterlockedDecrement
+    InterlockedExchange
+    InterlockedCompareExchange
+    
+    ; Memory operations
+    RtlCopyMemory
+    RtlZeroMemory
+    RtlMoveMemory
+    
+    ; Process/Thread
+    PsGetCurrentProcess
+    PsGetCurrentThread
+    KeGetCurrentIrql
+    
+    ; Time
+    KeQuerySystemTime
+    KeQueryTickCount
+    
+    ; Registry
+    ZwOpenKey
+    ZwQueryValueKey
+    ZwSetValueKey
+    ZwClose
+    
+    ; Physical memory
+    MmMapIoSpace
+    MmUnmapIoSpace
+    MmGetPhysicalAddress
+    
+    ; MDL
+    MmBuildMdlForNonPagedPool
+    IoAllocateMdl
+    IoFreeMdl
+    
+    ; Processor
+    KeSetSystemAffinityThread
+    KeRevertToUserAffinityThread
+    KeGetCurrentProcessorNumber
+    
+    ; Crypto (BCrypt)
+    BCryptOpenAlgorithmProvider
+    BCryptCloseAlgorithmProvider
+    BCryptGenerateSymmetricKey
+    BCryptEncrypt
+    BCryptDecrypt
+    BCryptDestroyKey
+    
+    ; Exception handling
+    RtlCaptureContext
+    RtlLookupFunctionEntry
+    RtlVirtualUnwind

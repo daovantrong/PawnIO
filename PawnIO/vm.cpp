@@ -48,36 +48,38 @@
 
 #include "vm.h"
 
-#define LITTLE_ENDIAN
+// Define FAST_FAIL constants if not available (for x86 compatibility)
+#ifndef FAST_FAIL_INVALID_THREAD_STATE
+#define FAST_FAIL_INVALID_THREAD_STATE 71
+#endif
+#ifndef FAST_FAIL_ASAN_ERROR
+#define FAST_FAIL_ASAN_ERROR 72
+#endif
 
-// Include architecture-aware types FIRST (includes amx_loader.h internally)
-#include "amx_wrapper.h"
+#include "amx_loader.h"
 #include "callbacks.h"
 #include "natives_impl.h"
 #include "signature.h"
 #include "public.h"
 
-// AMX types are now defined in amx_wrapper.h
-// They are architecture-aware (32-bit on x86, 64-bit on x64/ARM64)
-// Using amx64/amx64_loader aliases for compatibility
-static_assert(std::is_same_v<cell_t, amx64::cell>, "cell_t must match AMX cell type");
+// Use architecture-aware AMX types from amx_wrapper.h
+using amx64 = amx::amx<cell_t, amx::memory_manager_harvard<amx::memory_backing_contignous_buffer, amx::memory_backing_paged_buffers<5>>>;
+using amx64_loader = amx::loader<amx64>;
 
-// Forward declare to allow sizeof in context struct
-// This is safe because we only need the size, not the complete type
-using amx64_loader_complete = amx64_loader;
+static_assert(std::is_same_v<cell, amx64::cell>, "cell mismatch");
 
 template <typename ArgT, size_t Index>
 class arg_wrapper {};
 
 template <size_t Index>
-class arg_wrapper<cell_t&, Index> {
-  cell_t* p{};
+class arg_wrapper<cell&, Index> {
+  cell* p{};
 
 public:
   FORCEINLINE arg_wrapper() = default;
 
-  FORCEINLINE amx::error init(amx64* amx, cell_t, cell_t argv) {
-    p = amx->data_v2p(argv + Index * sizeof(cell_t));
+  FORCEINLINE amx::error init(amx64* amx, cell, cell argv) {
+    p = amx->data_v2p(argv + Index * sizeof(cell));
     if (!p)
       return amx::error::access_violation;
     p = amx->mem.data().translate(*p);
@@ -86,7 +88,7 @@ public:
     return amx::error::success;
   }
 
-  cell_t value{};
+  cell value{};
 
   FORCEINLINE ~arg_wrapper() {
     if (p)
@@ -95,36 +97,36 @@ public:
 };
 
 template <size_t Index>
-class arg_wrapper<cell_t, Index> {
+class arg_wrapper<cell, Index> {
 public:
   FORCEINLINE arg_wrapper() = default;
 
-  FORCEINLINE amx::error init(amx64* amx, cell_t, cell_t argv) {
-    const auto p = amx->data_v2p(argv + Index * sizeof(cell_t));
+  FORCEINLINE amx::error init(amx64* amx, cell, cell argv) {
+    const auto p = amx->data_v2p(argv + Index * sizeof(cell));
     if (!p)
       return amx::error::access_violation;
     value = *p;
     return amx::error::success;
   }
 
-  cell_t value{};
+  cell value{};
   FORCEINLINE ~arg_wrapper() = default;
 };
 
 template <size_t N, size_t Index>
-class arg_wrapper<std::array<cell_t, N>&, Index> {
-  std::array<cell_t*, N> ps{};
+class arg_wrapper<std::array<cell, N>&, Index> {
+  std::array<cell*, N> ps{};
 
 public:
   FORCEINLINE arg_wrapper() = default;
 
-  FORCEINLINE amx::error init(amx64* amx, cell_t, cell_t argv) {
-    const auto p = amx->data_v2p(argv + Index * sizeof(cell_t));
+  FORCEINLINE amx::error init(amx64* amx, cell, cell argv) {
+    const auto p = amx->data_v2p(argv + Index * sizeof(cell));
     if (!p)
       return amx::error::access_violation;
     const auto arr_base = *p;
     for (size_t i = 0; i < N; ++i) {
-      const auto elem = amx->mem.data().translate(arr_base + i * sizeof(cell_t));
+      const auto elem = amx->mem.data().translate(arr_base + i * sizeof(cell));
       if (!elem) {
         ps = {};
         return amx::error::access_violation;
@@ -135,7 +137,7 @@ public:
     return amx::error::success;
   }
 
-  std::array<cell_t, N> value{};
+  std::array<cell, N> value{};
 
   FORCEINLINE ~arg_wrapper() {
     for (size_t i = 0; i < N; ++i)
@@ -144,17 +146,17 @@ public:
 };
 
 template <size_t N, size_t Index>
-class arg_wrapper<std::array<cell_t, N>, Index> {
+class arg_wrapper<std::array<cell, N>, Index> {
 public:
   FORCEINLINE arg_wrapper() = default;
 
-  FORCEINLINE amx::error init(amx64* amx, cell_t, cell_t argv) {
-    const auto p = amx->data_v2p(argv + Index * sizeof(cell_t));
+  FORCEINLINE amx::error init(amx64* amx, cell, cell argv) {
+    const auto p = amx->data_v2p(argv + Index * sizeof(cell));
     if (!p)
       return amx::error::access_violation;
     const auto arr_base = *p;
     for (size_t i = 0; i < N; ++i) {
-      const auto elem = amx->mem.data().translate(arr_base + i * sizeof(cell_t));
+      const auto elem = amx->mem.data().translate(arr_base + i * sizeof(cell));
       if (!elem)
         return amx::error::access_violation;
       value[i] = *elem;
@@ -162,7 +164,7 @@ public:
     return amx::error::success;
   }
 
-  std::array<cell_t, N> value{};
+  std::array<cell, N> value{};
   FORCEINLINE ~arg_wrapper() = default;
 };
 
@@ -181,7 +183,7 @@ namespace impl {
   using wtuple_t = typename wtuple<std::tuple<Tx...>, std::make_index_sequence<sizeof...(Tx)>>::type;
 
   template <size_t N, typename T>
-  FORCEINLINE amx::error init_wtuple(amx64* amx, cell_t argc, cell_t argv, T& tuple) {
+  FORCEINLINE amx::error init_wtuple(amx64* amx, cell argc, cell argv, T& tuple) {
     if constexpr (N == std::tuple_size_v<T>) {
       return {};
     } else {
@@ -194,7 +196,7 @@ namespace impl {
   }
 
   template <typename... Tx>
-  FORCEINLINE std::pair<wtuple_t<Tx...>, amx::error> init_wtuple(amx64* amx, cell_t argc, cell_t argv) {
+  FORCEINLINE std::pair<wtuple_t<Tx...>, amx::error> init_wtuple(amx64* amx, cell argc, cell argv) {
     std::pair<wtuple_t<Tx...>, amx::error> result = {};
     result.second = init_wtuple<0>(amx, argc, argv, result.first);
     return result;
@@ -206,9 +208,9 @@ FORCEINLINE amx::error native_callback_wrapper2(
   amx64* amx,
   amx64_loader* loader,
   void* user,
-  cell_t argc,
-  cell_t argv,
-  cell_t& retval,
+  cell argc,
+  cell argv,
+  cell& retval,
   Ret (*)(Args...)
 ) {
   UNREFERENCED_PARAMETER(loader);
@@ -244,11 +246,11 @@ FORCEINLINE amx::error native_callback_wrapper2(
 }
 
 template <auto* Fn>
-amx::error native_callback_wrapper(amx64* amx, amx64_loader* loader, void* user, cell_t argc, cell_t argv, cell_t& retval) {
+amx::error native_callback_wrapper(amx64* amx, amx64_loader* loader, void* user, cell argc, cell argv, cell& retval) {
   return native_callback_wrapper2<Fn>(amx, loader, user, argc, argv, retval, Fn);
 }
 
-amx::error debug_print(amx64* amx, amx64_loader* loader, void* user, cell_t argc, cell_t argv, cell_t& retval) {
+amx::error debug_print(amx64* amx, amx64_loader* loader, void* user, cell argc, cell argv, cell& retval) {
   UNREFERENCED_PARAMETER(loader);
   UNREFERENCED_PARAMETER(user);
 
@@ -257,7 +259,7 @@ amx::error debug_print(amx64* amx, amx64_loader* loader, void* user, cell_t argc
   if (argc == 0)
     return amx::error::invalid_operand;
   char message[1024] = "[PawnIO] debug_print: ";
-  cell_t args[64]{};
+  cell args[64]{};
   const auto pvfmt = amx->data_v2p(argv);
   if (!pvfmt)
     return amx::error::access_violation;
@@ -269,7 +271,7 @@ amx::error debug_print(amx64* amx, amx64_loader* loader, void* user, cell_t argc
   bool in_escape = false;
   while (true) {
     const auto pc = amx->mem.data().translate(vit);
-    vit += sizeof(cell_t);
+    vit += sizeof(cell);
     if (!pc)
       return amx::error::access_violation;
     const auto c = (char)*pc;
@@ -332,7 +334,7 @@ leave:
     return amx::error::invalid_operand;
 
   for (size_t i = 0; i < arg_count; ++i) {
-    const auto pparg = amx->data_v2p(argv + (i + 1) * sizeof(cell_t));
+    const auto pparg = amx->data_v2p(argv + (i + 1) * sizeof(cell));
     if (!pparg)
       return amx::error::invalid_operand;
     const auto parg = amx->mem.data().translate(*pparg);
@@ -345,12 +347,12 @@ leave:
   return amx::error::success;
 }
 
-static ptrdiff_t amx_strcpy(char* dst, size_t dst_len, amx64* amx, cell_t vfmt) {
+static ptrdiff_t amx_strcpy(char* dst, size_t dst_len, amx64* amx, cell vfmt) {
   auto vit = vfmt;
   size_t idx = 0;
   while (true) {
     const auto pc = amx->mem.data().translate(vit);
-    vit += sizeof(cell_t);
+    vit += sizeof(cell);
     if (!pc)
       return -1;
     const auto c = (char)*pc;
@@ -372,7 +374,7 @@ static ptrdiff_t amx_strcpy(char* dst, size_t dst_len, amx64* amx, cell_t vfmt) 
   return (ptrdiff_t)idx - 1;
 }
 
-amx::error get_proc_address_wrap(amx64* amx, amx64_loader* loader, void* user, cell_t argc, cell_t argv, cell_t& retval) {
+amx::error get_proc_address_wrap(amx64* amx, amx64_loader* loader, void* user, cell argc, cell argv, cell& retval) {
   UNREFERENCED_PARAMETER(loader);
   UNREFERENCED_PARAMETER(user);
 
@@ -398,7 +400,7 @@ amx::error get_proc_address_wrap(amx64* amx, amx64_loader* loader, void* user, c
   return amx::error::success;
 }
 
-amx::error get_public(amx64* amx, amx64_loader* loader, void* user, cell_t argc, cell_t argv, cell_t& retval) {
+amx::error get_public(amx64* amx, amx64_loader* loader, void* user, cell argc, cell argv, cell& retval) {
   UNREFERENCED_PARAMETER(user);
 
   retval = 0;
@@ -444,14 +446,14 @@ struct context {
 
 struct to_amx_callback_context {
   context* ctx;
-  cell_t cip;
+  cell cip;
 };
 
 constexpr static size_t k_to_amx_callback_count = 0x100;
 
 static to_amx_callback_context s_to_amx_callback_data[k_to_amx_callback_count];
 
-static __declspec(noinline) cell_t to_amx_callback_dispatch(size_t idx, cell_t args) {
+static __declspec(noinline) cell to_amx_callback_dispatch(size_t idx, cell args) {
   const auto cb_ctx = &s_to_amx_callback_data[idx];
   const auto vm_ctx = cb_ctx->ctx;
   if (!vm_ctx)
@@ -460,7 +462,7 @@ static __declspec(noinline) cell_t to_amx_callback_dispatch(size_t idx, cell_t a
   const auto cip = cb_ctx->cip;
   if (!cip)
     __fastfail(FAST_FAIL_INVALID_JUMP_BUFFER);
-  cell_t ret{};
+  cell ret{};
   const auto status = vm_callback_precall(vm_ctx, cip);
   if (!NT_SUCCESS(status))
     __fastfail(FAST_FAIL_GUARD_ICALL_CHECK_FAILURE);
@@ -471,14 +473,15 @@ static __declspec(noinline) cell_t to_amx_callback_dispatch(size_t idx, cell_t a
 }
 
 template <size_t Idx>
-static cell_t to_amx_callback(cell_t, ...) {
+static cell to_amx_callback(cell first_arg, ...) {
   va_list va{};
 #ifdef ARCH_X86
-  va = (va_list)((char*)&va + sizeof(va)); // x86: args start after first parameter
+  // x86: use standard va_start with first parameter
+  va_start(va, first_arg);
 #else
-  __va_start(&va, 0); // x64/ARM64: msvc intrinsic
+  __va_start(&va, 0); // msvc x64 hack
 #endif
-  const auto args = (cell_t)va;
+  const auto args = (cell)va;
   const auto rv = to_amx_callback_dispatch(Idx, args);
   return rv;
 }
@@ -495,23 +498,23 @@ static constexpr std::array<to_amx_callback_fn, sizeof...(Indices)> make_callbac
 // Generate the array with indices from 0 to k_to_amx_callback_count-1
 static constexpr auto k_to_amx_callback_fns = make_callback_array(std::make_index_sequence<k_to_amx_callback_count>{});
 
-static cell_t to_amx_callback_alloc(context* vm_ctx, cell_t cip) {
+static cell to_amx_callback_alloc(context* vm_ctx, cell cip) {
   for (size_t i = 0; i < k_to_amx_callback_count; ++i) {
     auto& cb_ctx = s_to_amx_callback_data[i];
     if (cb_ctx.ctx == nullptr) {
       if (nullptr == _InterlockedCompareExchangePointer((PVOID volatile*)&cb_ctx.ctx, vm_ctx, nullptr)) {
         cb_ctx.cip = cip;
-        return (cell_t)k_to_amx_callback_fns[i];
+        return (cell)k_to_amx_callback_fns[i];
       }
     }
   }
   return 0;
 }
 
-static void to_amx_callback_free(context* vm_ctx, cell_t pfn) {
+static void to_amx_callback_free(context* vm_ctx, cell pfn) {
   size_t i;
   for (i = 0; i < k_to_amx_callback_count; ++i)
-    if (pfn == (cell_t)k_to_amx_callback_fns[i])
+    if (pfn == (cell)k_to_amx_callback_fns[i])
       break;
   if (i == k_to_amx_callback_count)
     __fastfail(FAST_FAIL_ASAN_ERROR);
@@ -522,7 +525,7 @@ static void to_amx_callback_free(context* vm_ctx, cell_t pfn) {
   cb_ctx.ctx = nullptr;
 }
 
-static amx::error to_amx_callback_alloc_wrap(amx64* amx, amx64_loader* loader, void* user, cell_t argc, cell_t argv, cell_t& retval) {
+static amx::error to_amx_callback_alloc_wrap(amx64* amx, amx64_loader* loader, void* user, cell argc, cell argv, cell& retval) {
   UNREFERENCED_PARAMETER(loader);
 
   if (argc != 1)
@@ -537,7 +540,7 @@ static amx::error to_amx_callback_alloc_wrap(amx64* amx, amx64_loader* loader, v
   return amx::error::success;
 }
 
-static amx::error to_amx_callback_free_wrap(amx64* amx, amx64_loader* loader, void* user, cell_t argc, cell_t argv, cell_t& retval) {
+static amx::error to_amx_callback_free_wrap(amx64* amx, amx64_loader* loader, void* user, cell argc, cell argv, cell& retval) {
   UNREFERENCED_PARAMETER(loader);
 
   retval = 0;
@@ -711,8 +714,8 @@ static NTSTATUS check_signature(const void* mem, size_t len, const uint8_t* sig,
   if (!NT_SUCCESS(status))
     return status;
 
-  for (auto it = k_trusted_keys; it->data; ++it) {
-    status = verify_sig(sha256, sig, sig_len, it->data, it->len);
+  for (auto it = k_trusted_keys; it->pubkey_data; ++it) {
+    status = verify_sig(sha256, sig, sig_len, it->pubkey_data, it->pubkey_len);
     if (NT_SUCCESS(status))
       break;
   }
@@ -812,7 +815,7 @@ NTSTATUS vm_load_binary(PVOID* ctx, PVOID buffer, SIZE_T size) {
       std::unique_lock lock{my_ctx->mutex};
       status = vm_callback_precall(my_ctx, main);
       if (NT_SUCCESS(status)) {
-        cell_t ret{};
+        cell ret{};
         const auto res = loader->amx.call(main, ret);
         vm_callback_postcall(my_ctx);
 
@@ -861,13 +864,13 @@ NTSTATUS vm_execute_function(PVOID ctx, PVOID in_buffer, SIZE_T in_size, PVOID o
 
   auto& amx = loader->amx;
 
-  const auto cell_in_buffer = (cell_t*)in_buffer + 4;
-  const auto cell_in_count = in_size / sizeof(cell_t) - 4;
-  cell_t cell_in_va{};
+  const auto cell_in_buffer = (cell*)in_buffer + 4;
+  const auto cell_in_count = in_size / sizeof(cell) - 4;
+  cell cell_in_va{};
 
-  const auto cell_out_buffer = (cell_t*)out_buffer;
-  const auto cell_out_count = out_size / sizeof(cell_t);
-  cell_t cell_out_va{};
+  const auto cell_out_buffer = (cell*)out_buffer;
+  const auto cell_out_count = out_size / sizeof(cell);
+  cell cell_out_va{};
 
   NTSTATUS status = STATUS_SUCCESS;
 
@@ -911,7 +914,7 @@ NTSTATUS vm_destroy(PVOID ctx) {
       std::unique_lock lock{my_ctx->mutex};
       auto status = vm_callback_precall(my_ctx, fn);
       if (NT_SUCCESS(status)) {
-        cell_t ret{};
+        cell ret{};
         loader->amx.call(fn, ret);
         vm_callback_postcall(my_ctx);
       }

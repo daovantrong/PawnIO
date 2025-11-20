@@ -53,6 +53,6 @@ NTSTATUS vm_callback_init();
 void vm_callback_destroy();
 
 NTSTATUS vm_callback_created(PVOID ctx);
-NTSTATUS vm_callback_precall(PVOID ctx, cell_t cip);
+NTSTATUS vm_callback_precall(PVOID ctx, cell_t cip);  // Use cell_t for architecture compatibility
 void vm_callback_postcall(PVOID ctx);
 void vm_callback_destroyed(PVOID ctx);

@@ -163,8 +163,7 @@ NTSTATUS vm_callback_created(PVOID ctx) {
 }
 
 NTSTATUS vm_callback_precall(PVOID ctx, cell_t cip) {
-  // cell_t and UINT_PTR are both architecture-aware pointer-sized types
-  return s_precall.call_status(ctx, (UINT_PTR)cip);
+  return s_precall.call_status(ctx, (UINT_PTR)cip);  // Cast cell_t to UINT_PTR
 }
 
 void vm_callback_postcall(PVOID ctx) {
